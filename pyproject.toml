@@ -35,7 +35,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --basetemp=.pytest-tmp"
 filterwarnings = [
   "ignore:datetime.datetime.utcnow\\(\\) is deprecated:DeprecationWarning:ifcopenshell.api.project.create_file",
 ]

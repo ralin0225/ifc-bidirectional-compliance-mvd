@@ -10,7 +10,9 @@ def test_health_and_models():
     assert health.status_code == 200
     assert health.json()["rule_count"] == 3
     assert health.json()["element_count"] == 10
+    assert health.json()["storage"]["schema_version"] == 1
     assert client.get("/api/models").json()[0]["schema"] == "IFC4"
+    assert client.get("/api/projects").json()[0]["model_count"] == 1
 
 
 def test_rule_to_elements_and_element_to_rules_are_bidirectional():
@@ -37,6 +39,7 @@ def test_check_endpoint_is_deterministic_and_structured():
     second = client.post("/api/checks/run")
     assert first.status_code == second.status_code == 200
     assert first.json()["execution_id"] == second.json()["execution_id"]
+    assert first.json()["run_id"] != second.json()["run_id"]
     assert first.json()["results"] == second.json()["results"]
     assert first.json()["status_counts"] == {
         "FAIL": 3,
@@ -44,6 +47,13 @@ def test_check_endpoint_is_deterministic_and_structured():
         "NOT_CHECKABLE": 3,
         "PASS": 6,
     }
+    history = client.get("/api/check-runs", params={"limit": 2}).json()
+    assert history["total"] >= 2
+    assert len(history["items"]) == 2
+    comparison = client.get(
+        f"/api/check-runs/{first.json()['run_id']}/compare/{second.json()['run_id']}"
+    )
+    assert comparison.json()["change_count"] == 0
 
 
 def test_ego_graph_is_local_and_traceable():
@@ -60,4 +70,3 @@ def test_ego_graph_is_local_and_traceable():
 def test_unknown_ids_return_404():
     assert client.get("/api/rules/unknown").status_code == 404
     assert client.get("/api/elements/unknown/rules").status_code == 404
-

@@ -9,9 +9,11 @@ htmlcov/
 node_modules/
 dist/
 tmp/
+.pytest-tmp/
 reports/runtime/
 data/results/*.json
 !data/results/.gitkeep
+data/runtime/
 *.log
 .DS_Store
 Thumbs.db

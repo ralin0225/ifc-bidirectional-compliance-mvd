@@ -25,6 +25,8 @@ STATUSES = {"PASS", "FAIL", "NOT_APPLICABLE", "NOT_CHECKABLE", "MANUAL_REVIEW_RE
 
 
 class ComplianceEngine:
+    checker_version = CHECKER_VERSION
+
     def __init__(
         self,
         model_path: Path = MODEL_PATH,
