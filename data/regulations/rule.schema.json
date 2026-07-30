@@ -16,7 +16,7 @@
     },
     "rules": {
       "type": "array",
-      "minItems": 3,
+      "minItems": 6,
       "items": {"$ref": "#/$defs/rule"}
     }
   },
@@ -26,7 +26,7 @@
       "required": [
         "rule_id", "version", "title", "source", "target", "applicability",
         "requirement", "required_information", "execution_method",
-        "mapping", "review_status"
+        "mapping", "automation_level", "review_status"
       ],
       "properties": {
         "rule_id": {"type": "string", "pattern": "^IBC2021-"},
@@ -52,14 +52,59 @@
           "required": ["metric", "operator", "value", "unit"],
           "properties": {
             "metric": {"type": "string"},
-            "operator": {"const": ">="},
+            "operator": {"enum": [">=", "==", "manual_review"]},
             "value": {"type": "number"},
-            "unit": {"const": "mm"}
+            "unit": {"enum": ["mm", "binary"]}
           }
         },
+        "required_information": {"type": "array"},
+        "execution_method": {
+          "enum": [
+            "IFC_PROPERTY",
+            "IFC_GEOMETRY",
+            "IFC_RELATIONSHIP",
+            "IFC_TOPOLOGY",
+            "HUMAN_INSPECTION"
+          ]
+        },
+        "mapping": {"type": "object"},
+        "automation_level": {
+          "enum": ["deterministic_mvd", "manual_judgement"]
+        },
         "review_status": {"const": "human_verified"}
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "automation_level": {"const": "manual_judgement"}
+            }
+          },
+          "then": {
+            "properties": {
+              "execution_method": {"const": "HUMAN_INSPECTION"},
+              "requirement": {
+                "properties": {"operator": {"const": "manual_review"}}
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "execution_method": {
+                "enum": [
+                  "IFC_PROPERTY",
+                  "IFC_GEOMETRY",
+                  "IFC_RELATIONSHIP",
+                  "IFC_TOPOLOGY"
+                ]
+              },
+              "requirement": {
+                "properties": {"operator": {"enum": [">=", "=="]}}
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
-

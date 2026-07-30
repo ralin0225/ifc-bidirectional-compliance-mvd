@@ -50,7 +50,7 @@ def test_json_and_csv_preserve_audit_identifiers(audited_run):
     rows = list(
         csv.DictReader(io.StringIO(csv_report(audited_run).decode("utf-8-sig")))
     )
-    assert len(rows) == 15
+    assert len(rows) == 30
     assert {row["run_id"] for row in rows} == {audited_run["run_id"]}
     assert all(row["element_guid"] and row["rule_id"] for row in rows)
     assert json.loads(rows[0]["evidence_details"])
@@ -83,12 +83,12 @@ def test_bcf_30_round_trip_preserves_topics_selection_and_is_deterministic(
 
     inspection = inspect_bcfzip(first)
     assert inspection["version"] == "3.0"
-    assert inspection["topic_count"] == 6
+    assert inspection["topic_count"] == 14
     assert all(topic["viewpoints"] for topic in inspection["topics"])
     with zipfile.ZipFile(io.BytesIO(first)) as archive:
         names = archive.namelist()
         assert names[0] == "bcf.version"
-        assert sum(name.endswith("/markup.bcf") for name in names) == 6
+        assert sum(name.endswith("/markup.bcf") for name in names) == 14
         viewpoint_xml = archive.read(
             next(name for name in names if name.endswith(".bcfv"))
         ).decode("utf-8")
@@ -99,7 +99,7 @@ def test_bcf_30_round_trip_preserves_topics_selection_and_is_deterministic(
     archive_path.write_bytes(first)
     parsed = BcfXml.load(archive_path)
     assert parsed is not None
-    assert len(parsed.topics) == 6
+    assert len(parsed.topics) == 14
 
 
 def test_bcf_inspection_rejects_path_traversal_and_zip_bombs():

@@ -93,7 +93,7 @@
       "projection": ["element", "rule", "status", "evidence"],
       "limit": 100
     },
-    "expected_total": 1
+    "expected_total": 2
   },
   {
     "utterance": "Summarize failed spaces for the ceiling height rule",
@@ -129,7 +129,7 @@
       "projection": ["element", "rule", "status", "evidence"],
       "limit": 100
     },
-    "expected_total": 4
+    "expected_total": 6
   },
   {
     "utterance": "<script>alert('run SQL')</script>",

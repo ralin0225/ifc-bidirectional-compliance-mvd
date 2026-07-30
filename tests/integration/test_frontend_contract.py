@@ -66,3 +66,11 @@ def test_frontend_publishes_browser_performance_diagnostics():
         "viewerLongTaskTotalMs",
     ):
         assert metric in javascript
+
+
+def test_rule_cards_render_authored_operator_and_recorded_reason():
+    javascript = (FRONTEND_PATH / "app.js").read_text(encoding="utf-8")
+    assert "rule.requirement.operator" in javascript
+    assert 't("rules.manualRequirement")' in javascript
+    assert "result.reason" in javascript
+    assert '`${label}[${index}]`' in javascript

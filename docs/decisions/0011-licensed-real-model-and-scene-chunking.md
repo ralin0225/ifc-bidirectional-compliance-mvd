@@ -15,7 +15,7 @@
 4. 现实模型单列性能报告与宽松预算，不复用合成夹具阈值。
 5. 新增快速 manifest 和稳定 GlobalId 排序、每块最多 100 elements 的 chunk API；前端首块即初始化 viewer，剩余块依序追加，IDS 在完整 scene 后加载。旧 `/api/scene` 保持兼容。
 6. imported model engine 采用 per-model single-flight lock，避免多个并发首屏 API 重复解析/check 同一 IFC。
-7. 当前现实模型产生的 777 项 `NOT_CHECKABLE` 保持原义：缺少 mapping/required information，不得转成 FAIL。
+7. 当时三规则现实模型产生的 777 项 `NOT_CHECKABLE` 保持原义：缺少 mapping/required information，不得转成 FAIL。ADR 0012 扩展为六规则后为 1,554 项，同一证据边界不变。
 
 ## 结果
 

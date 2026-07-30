@@ -56,11 +56,11 @@ def test_runs_persist_results_and_compare_deterministically(tmp_path, engine):
     listing = store.list_runs(model_id=MODEL_ID, limit=1)
     assert listing["total"] == 2
     assert len(listing["items"]) == 1
-    assert store.get_run(first)["result_count"] == 15
+    assert store.get_run(first)["result_count"] == 30
     assert store.compare_runs(first, second) == {
         "base_run_id": first,
         "target_run_id": second,
-        "unchanged_count": 15,
+        "unchanged_count": 30,
         "change_count": 0,
         "changes": [],
     }

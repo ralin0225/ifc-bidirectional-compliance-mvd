@@ -17,6 +17,8 @@ flowchart LR
     IFC["IFC4 + GlobalId"] --> IDS
     IFC --> IfcOS["IfcOpenShell 语义与几何"]
     IfcOS --> Engine
+    IFC --> Relations["IfcRelSpaceBoundary + authored context"]
+    Relations --> Engine
     IDS -->|"缺失 → NOT_CHECKABLE"| Engine
     Engine --> Results["结果 + Evidence"]
     Results --> API["FastAPI 双向查询"]
@@ -35,7 +37,7 @@ flowchart LR
 |---|---|---|
 | `rules.py` | JSON Schema 校验、规则索引 | 不执行规范逻辑 |
 | `ifc_adapter.py` | IFC 属性、placement、三角网格、世界坐标 bbox | 不决定适用性 |
-| `engine.py` | 适用性、信息前置条件、测量、状态和证据 | 不解释未建模例外 |
+| `engine.py` | 适用性、信息前置条件、属性/几何/关系/拓扑计算、人工路由、状态和证据 | 不解释未建模例外 |
 | IfcTester | 对 `.ids` 执行 buildingSMART IDS 1.0 验证 | 不判断 IBC 阈值 |
 | `graph.py` | 构造局部关系投影 | 不存完整 B-rep |
 | `api.py` | 双向 API、per-model single-flight engine load、scene manifest/chunks 和静态界面托管 | 不包含规则算法 |
@@ -72,7 +74,9 @@ flowchart TD
     Candidate["IFC class 是规则 target"] --> Applicable{"适用性信息充分？"}
     Applicable -->|缺失| NC1["NOT_CHECKABLE"]
     Applicable -->|明确不适用| NA["NOT_APPLICABLE"]
-    Applicable -->|适用| Information{"IDS/前置信息充分？"}
+    Applicable -->|适用| Manual{"需要现场人工判断？"}
+    Manual -->|是| MR["MANUAL_REVIEW_REQUIRED"]
+    Manual -->|否| Information{"IDS/前置信息充分？"}
     Information -->|否| NC2["NOT_CHECKABLE"]
     Information -->|是| Compute{"确定性测量成功？"}
     Compute -->|否| NC3["NOT_CHECKABLE"]
@@ -90,6 +94,12 @@ height_mm = (max(vertex.z) - min(vertex.z)) × 1000
 ```
 
 演示模型的项目长度单位是毫米，API 场景统一转换为米。算法保存 bbox、顶点数、三角形数和受控夹具假设。任意斜顶、阶梯空间和局部障碍不能套用这个简化量，应转入更丰富的几何算法或人工复核。
+
+## 关系与拓扑检查
+
+门开启方向规则从 `IfcDoor.ProvidesBoundaries` 找到关联 `IfcSpace`，优先从 `IfcRelAssociatesClassification` 读取 IBC occupancy group，并结合显式 occupant load 判断 §1010.1.2.1 是否适用，再核对受控摆向映射。项目属性 occupancy group 只作为声明清楚的 fallback。疏散连续性规则从空间出发，对共享门边界做 breadth-first traversal，保留访问空间、经过门、关系 GlobalId 和到达的 exit-discharge door。只有导出方声明 `TopologyCoverageComplete=true` 时，无路径才可判为 FAIL；否则信息不足。
+
+§1010.2 的“readily openable”依赖实际硬件与现场操作。该规则在适用时直接进入 `MANUAL_REVIEW_REQUIRED`，保存检查清单，不接受任何 IFC 属性作为自动通过证据。
 
 ## 关系投影
 

@@ -2,9 +2,10 @@
 
 ## 法规范围
 
-- 只覆盖 2021 IBC 的三个数值规则。
-- §1010.1.1 和 §1003.2 的例外没有自动推理。
-- 未建模 occupant load、occupancy group、双扇门、门摆角、斜顶、梁和局部突出物。
+- 只覆盖 2021 IBC 的六个代表性切片：三个数值阈值、一个关系规则、一个受限拓扑规则和一个人工判定规则。
+- §1010.1.1、§1003.2、§1003.6、§1010.1.2.1 和 §1010.2 的完整例外没有自动推理。
+- occupant load、门摆向、出口标识和拓扑完整性只读取受控项目映射；occupancy group 优先读取 `IfcRelAssociatesClassification`，系统仍不自行完成 IBC occupant-load 计算。
+- 未建模双扇门、复杂门型、斜顶、梁、局部突出物、实际障碍和硬件现场操作。
 - 短摘录仅用于研究追溯，不能替代合法取得的 IBC 正文。
 - 系统不是审批、认证、法律意见或生命安全决策工具。
 
@@ -12,13 +13,14 @@
 
 - 已验证受控 IFC4 和一项 Revit 2011/optimizer 生成的 CC BY 4.0 IFC2X3 clinic；单个现实模型仍不代表 Revit、Archicad 或其他作者工具/版本的全部导出差异。
 - 门 clear opening 使用自定义 `Pset_ComplianceMeasurements`。真实模型需要受控映射表、单位转换、类型继承和来源置信。
-- 当前适用性依赖 `Pset_ComplianceApplicability.IsMeansOfEgress`，没有从空间连通、疏散路径或房间功能自动推断。
+- 当前基础适用性仍依赖 `Pset_ComplianceApplicability.IsMeansOfEgress`；开启方向规则再读取门—空间关系及空间人数/Group H，不能从房间名称猜测。
+- 拓扑规则要求 `TopologyCoverageComplete=true` 才允许 FAIL；缺少完整性声明或边界关系时必须 `NOT_CHECKABLE`。
 - 缺失表示的空间在 viewer 中显示为低矮 placeholder；它只用于保持选择能力，明确不参与几何判定。
 
 ## 几何算法
 
 - 世界坐标 axis-aligned bbox 只对受控正交空间等价于净高。
-- 未做布尔运算、最小净高场、障碍投影、碰撞、路径或可达性分析。
+- 仅对 `IfcRelSpaceBoundary` 做 breadth-first graph traversal；未做布尔运算、最小净高场、障碍投影、碰撞、实际路径规划或可达性分析。
 - 未处理几何容差、损坏 B-rep、映射表示、布尔树和非常大的模型性能。
 
 ## IDS

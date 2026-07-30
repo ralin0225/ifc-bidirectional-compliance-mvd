@@ -1,12 +1,24 @@
+import json
+from copy import deepcopy
+
+import jsonschema
+import pytest
+
+from ifc_compliance_mvd.paths import RULE_SCHEMA_PATH
 from ifc_compliance_mvd.rules import load_rule_collection
 
 
 def test_rule_library_is_schema_valid_and_human_reviewed():
     collection = load_rule_collection()
     assert collection["document"]["edition"] == "2021"
-    assert len(collection["rules"]) == 3
+    assert len(collection["rules"]) == 6
     assert all(rule["review_status"] == "human_verified" for rule in collection["rules"])
-    assert {rule["source"]["pdf_page"] for rule in collection["rules"]} == {304, 316}
+    assert {rule["source"]["pdf_page"] for rule in collection["rules"]} == {
+        304,
+        305,
+        316,
+        318,
+    }
 
 
 def test_thresholds_match_selected_ibc_clauses():
@@ -19,11 +31,44 @@ def test_thresholds_match_selected_ibc_clauses():
     }
     assert rules["IBC2021-1010.1.1-HEIGHT"]["requirement"]["value"] == 2032.0
     assert rules["IBC2021-1003.2-EGRESS-HEIGHT"]["requirement"]["value"] == 2286.0
+    assert rules["IBC2021-1010.1.2.1-SWING"]["requirement"] == {
+        "metric": "egress_swing_direction_conformance",
+        "operator": "==",
+        "value": 1.0,
+        "unit": "binary",
+    }
+    assert rules["IBC2021-1003.6-EGRESS-CONTINUITY"]["requirement"]["value"] == 1.0
+    assert (
+        rules["IBC2021-1010.2-DOOR-OPERATIONS"]["automation_level"]
+        == "manual_judgement"
+    )
 
 
 def test_every_rule_separates_information_requirements_from_threshold():
     for rule in load_rule_collection()["rules"]:
-        assert rule["required_information"]
         assert rule["requirement"]["value"] > 0
-        assert rule["execution_method"] in {"IFC_PROPERTY", "IFC_GEOMETRY"}
+        assert rule["execution_method"] in {
+            "IFC_PROPERTY",
+            "IFC_GEOMETRY",
+            "IFC_RELATIONSHIP",
+            "IFC_TOPOLOGY",
+            "HUMAN_INSPECTION",
+        }
+        if rule["automation_level"] == "manual_judgement":
+            assert rule["required_information"] == []
+            assert rule["requirement"]["operator"] == "manual_review"
+        else:
+            assert rule["required_information"]
 
+
+def test_schema_rejects_automating_a_manual_judgement_rule():
+    collection = deepcopy(load_rule_collection())
+    manual_rule = next(
+        rule
+        for rule in collection["rules"]
+        if rule["automation_level"] == "manual_judgement"
+    )
+    manual_rule["requirement"]["operator"] = "=="
+    schema = json.loads(RULE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(collection)

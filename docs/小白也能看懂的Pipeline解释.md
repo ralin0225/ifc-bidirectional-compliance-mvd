@@ -116,7 +116,7 @@ GET /api/elements/某个GlobalId/rules
 | `FAIL` | 已知适用、信息充分、测量不满足要求 |
 | `NOT_APPLICABLE` | 已明确知道这条规则不适用于该构件 |
 | `NOT_CHECKABLE` | 缺少适用性、属性、关系或几何，不能下结论 |
-| `MANUAL_REVIEW_REQUIRED` | 信息存在，但例外或算法超出可靠自动化范围；MVD 保留这个状态但当前夹具未触发 |
+| `MANUAL_REVIEW_REQUIRED` | 需要现场操作或专业判断；§1010.2 的四扇适用门会进入这个状态 |
 
 ## 一个 IFC 文件经历了什么
 
@@ -124,8 +124,8 @@ GET /api/elements/某个GlobalId/rules
 2. 规则按 `IfcDoor` 或 `IfcSpace` 选择候选构件。
 3. 适用性属性为 false 就返回 NOT_APPLICABLE。
 4. IDS/前置检查发现缺数据就返回 NOT_CHECKABLE。
-5. IfcOpenShell 读取属性或生成几何。
-6. 确定性代码测量并比较阈值。
+5. 人工判定规则生成检查清单；自动规则由 IfcOpenShell 读取属性、关系、拓扑或生成几何。
+6. 确定性代码测量、遍历并比较要求。
 7. 结果保存条款、实测、阈值、原因和 evidence。
 8. API 可从规则查构件，也可从构件查规则。
 9. 浏览器用 `GlobalId` 协调三维、表格、条文与图。

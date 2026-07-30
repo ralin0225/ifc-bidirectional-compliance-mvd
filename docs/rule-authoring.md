@@ -38,6 +38,16 @@ Pset_ComplianceMeasurements.ClearOpeningHeight
 
 MVD 对正交合成空间使用世界坐标 bbox 的 Z 向尺寸。这个算法仅用于证明几何闭环，不覆盖斜顶、梁、局部突出物、楼梯、坡道或条款例外。
 
+### 门—空间关系与疏散拓扑
+
+门开启方向先从 `IfcDoor.ProvidesBoundaries` 找到相关空间，再读取显式人数，并通过 `IfcRelAssociatesClassification` 读取 occupancy group；项目属性只在 classification 缺失时作为显式 fallback。疏散连续性对 `IfcSpace.BoundedBy ↔ IfcDoor.ProvidesBoundaries` 图做 BFS。两者都保存实际关系 GlobalId；关系缺失不得退化为 FAIL。
+
+拓扑无路径只有在 `Pset_ComplianceTopology.TopologyCoverageComplete=true` 时才表示设计失败。缺少该声明代表信息不充分。
+
+### 人工判定
+
+`automation_level: manual_judgement` 的规则在确认适用后直接进入 `MANUAL_REVIEW_REQUIRED`。规则必须提供人工检查清单，且不得借用一个看似相关的 IFC 属性制造自动 PASS。
+
 ## 增加规则
 
 1. 在规则 JSON 中添加对象并运行 `python -m pytest tests/unit/test_rules.py`。
@@ -54,4 +64,6 @@ MVD 对正交合成空间使用世界坐标 bbox 的 Z 向尺寸。这个算法�
 | `IBC2021-1010.1.1-WIDTH` | §1010.1.1 | 316 | 813 mm | 已核对原文；未实现例外和 occupant load |
 | `IBC2021-1010.1.1-HEIGHT` | §1010.1.1 | 316 | 2032 mm | 已核对原文；未实现高度例外 |
 | `IBC2021-1003.2-EGRESS-HEIGHT` | §1003.2 | 304 | 2286 mm | 已核对原文；受控正交空间，未实现八项例外 |
-
+| `IBC2021-1010.1.2.1-SWING` | §1010.1.2.1 | 316 | binary = 1 | 已核对原文；关联空间上下文与摆向为受控映射 |
+| `IBC2021-1003.6-EGRESS-CONTINUITY` | §1003.6 | 305 | binary = 1 | 已核对原文；仅检查声明完整的边界图连通 |
+| `IBC2021-1010.2-DOOR-OPERATIONS` | §1010.2 | 318 | manual | 已核对原文；只生成现场复核任务 |

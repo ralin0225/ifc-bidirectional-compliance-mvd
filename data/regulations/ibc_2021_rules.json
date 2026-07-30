@@ -155,6 +155,183 @@
       "automation_level": "deterministic_mvd",
       "review_status": "human_verified",
       "review_note": "Threshold was manually checked against the local 2021 IBC PDF. The bounding-box interpretation is limited to controlled rectangular fixtures."
+    },
+    {
+      "rule_id": "IBC2021-1010.1.2.1-SWING",
+      "version": "1.0.0",
+      "title": "Egress door direction of swing",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1010.1.2.1",
+        "printed_page": "10-13",
+        "pdf_page": 316,
+        "excerpt": "shall swing in the direction of egress travel where serving a room or area containing an occupant load of 50 or more persons or a Group H occupancy"
+      },
+      "target": {"ifc_class": "IfcDoor"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        },
+        {
+          "kind": "related_space_occupancy",
+          "relationship": "IfcRelSpaceBoundary",
+          "occupant_load": {
+            "property_set": "Pset_ComplianceContext",
+            "property": "ServedOccupantLoad"
+          },
+          "occupancy_group": {
+            "classification_system": "IBC Occupancy Group",
+            "fallback_property": {
+              "property_set": "Pset_ComplianceContext",
+              "property": "OccupancyGroup"
+            }
+          },
+          "minimum_occupant_load": 50,
+          "hazardous_group": "H",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "The MVD evaluates side-hinged controlled fixtures and does not infer door construction type.",
+        "The related-space occupancy context is an authored project mapping, not an IBC occupant-load calculation."
+      ],
+      "requirement": {
+        "metric": "egress_swing_direction_conformance",
+        "operator": "==",
+        "value": 1.0,
+        "unit": "binary"
+      },
+      "required_information": [
+        {
+          "kind": "property",
+          "property_set": "Pset_ComplianceRelationships",
+          "property": "SwingDirection",
+          "data_type": "IfcLabel",
+          "ids_specification": "IDS-DOOR-SWING-DIRECTION"
+        },
+        {
+          "kind": "relationship",
+          "relationship": "IfcRelSpaceBoundary",
+          "inverse_attribute": "ProvidesBoundaries"
+        }
+      ],
+      "execution_method": "IFC_RELATIONSHIP",
+      "mapping": {
+        "primary": "IfcDoor.ProvidesBoundaries → IfcRelSpaceBoundary.RelatingSpace → IfcRelAssociatesClassification plus Pset_ComplianceRelationships.SwingDirection",
+        "fallbacks": [
+          "Pset_ComplianceContext.OccupancyGroup is used only when no IBC Occupancy Group classification relationship is present."
+        ],
+        "interpretation": "A score of 1 means the normalized authored swing direction is EGRESS. Applicability is established from the related space occupant load or Group H classification."
+      },
+      "automation_level": "deterministic_mvd",
+      "review_status": "human_verified",
+      "review_note": "Applicability and direction wording were visually checked against PDF page 316. Project-specific occupancy mappings remain explicit evidence."
+    },
+    {
+      "rule_id": "IBC2021-1003.6-EGRESS-CONTINUITY",
+      "version": "1.0.0",
+      "title": "Modeled means-of-egress continuity to exit discharge",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1003.6",
+        "printed_page": "10-2",
+        "pdf_page": 305,
+        "excerpt": "The path of egress travel along a means of egress shall not be interrupted by a building element other than a means of egress component"
+      },
+      "target": {"ifc_class": "IfcSpace"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "This MVD checks graph connectivity only; it does not detect physical obstructions or verify capacity and width along the path.",
+        "A FAIL is allowed only when the author asserts that the exported topology coverage is complete."
+      ],
+      "requirement": {
+        "metric": "egress_path_to_exit_discharge",
+        "operator": "==",
+        "value": 1.0,
+        "unit": "binary"
+      },
+      "required_information": [
+        {
+          "kind": "property",
+          "property_set": "Pset_ComplianceTopology",
+          "property": "TopologyCoverageComplete",
+          "data_type": "IfcBoolean",
+          "expected_value": true,
+          "ids_specification": "IDS-EGRESS-SPACE-TOPOLOGY"
+        },
+        {
+          "kind": "relationship",
+          "relationship": "IfcRelSpaceBoundary",
+          "inverse_attribute": "BoundedBy"
+        }
+      ],
+      "execution_method": "IFC_TOPOLOGY",
+      "mapping": {
+        "primary": "IfcSpace.BoundedBy ↔ IfcDoor.ProvidesBoundaries with Pset_ComplianceTopology.IsExitDischarge",
+        "fallbacks": [],
+        "interpretation": "Breadth-first traversal returns 1 when a modeled boundary path reaches an authored exit-discharge door. The completeness assertion gates FAIL conclusions."
+      },
+      "automation_level": "deterministic_mvd",
+      "review_status": "human_verified",
+      "review_note": "Continuity wording was visually checked against PDF page 305. The implementation deliberately claims only graph connectivity, not full clause compliance."
+    },
+    {
+      "rule_id": "IBC2021-1010.2-DOOR-OPERATIONS",
+      "version": "1.0.0",
+      "title": "Door readily openable from the egress side",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1010.2",
+        "printed_page": "10-15",
+        "pdf_page": 318,
+        "excerpt": "egress doors shall be readily openable from the egress side without the use of a key or special knowledge or effort"
+      },
+      "target": {"ifc_class": "IfcDoor"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "IBC 1010.2 and its subsections contain operational and occupancy-specific exceptions that require project review."
+      ],
+      "requirement": {
+        "metric": "readily_openable_from_egress_side",
+        "operator": "manual_review",
+        "value": 1.0,
+        "unit": "binary"
+      },
+      "required_information": [],
+      "execution_method": "HUMAN_INSPECTION",
+      "mapping": {
+        "primary": "Field observation and approved hardware schedule",
+        "fallbacks": [],
+        "interpretation": "No IFC property is treated as proof that a door is readily openable without a key, special knowledge or effort.",
+        "manual_checklist": [
+          "Operate the door from the egress side under representative conditions.",
+          "Confirm that no key or special knowledge is required.",
+          "Record hardware identity, observation, reviewer and timestamp."
+        ]
+      },
+      "automation_level": "manual_judgement",
+      "review_status": "human_verified",
+      "review_note": "The operational wording was visually checked against PDF page 318. The rule is intentionally non-automated."
     }
   ]
 }

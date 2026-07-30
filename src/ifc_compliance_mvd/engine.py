@@ -19,7 +19,7 @@ from .ifc_adapter import (
 from .paths import IDS_PATH, MODEL_PATH, RESULTS_PATH
 from .rules import index_rules, load_rule_collection
 
-CHECKER_VERSION = "0.1.0"
+CHECKER_VERSION = "0.2.0"
 MODEL_ID = "ibc-egress-demo"
 STATUSES = {"PASS", "FAIL", "NOT_APPLICABLE", "NOT_CHECKABLE", "MANUAL_REVIEW_REQUIRED"}
 
@@ -57,9 +57,130 @@ class ComplianceEngine:
         return f"run-{digest.hexdigest()[:16]}"
 
     @staticmethod
+    def _classification_context(element, system_name: str) -> list[dict[str, Any]]:
+        records = []
+        for association in tuple(getattr(element, "HasAssociations", ()) or ()):
+            if not association.is_a("IfcRelAssociatesClassification"):
+                continue
+            reference = getattr(association, "RelatingClassification", None)
+            if reference is None:
+                continue
+            source = getattr(reference, "ReferencedSource", None)
+            source_name = getattr(source, "Name", None)
+            if source_name != system_name:
+                continue
+            code = (
+                getattr(reference, "Identification", None)
+                or getattr(reference, "ItemReference", None)
+                or getattr(reference, "Name", None)
+            )
+            if code is None:
+                continue
+            records.append(
+                {
+                    "code": str(code),
+                    "name": getattr(reference, "Name", None),
+                    "system": source_name,
+                    "relationship_guid": association.GlobalId,
+                    "reference_type": reference.is_a(),
+                }
+            )
+        return sorted(records, key=lambda item: (item["code"], item["relationship_guid"]))
+
+    @staticmethod
     def _applicability(rule: dict, element) -> tuple[str | None, str | None, dict]:
         details: dict[str, Any] = {}
         for condition in rule["applicability"]:
+            if condition.get("kind") == "related_space_occupancy":
+                boundaries = tuple(getattr(element, "ProvidesBoundaries", ()) or ())
+                related_spaces = [
+                    relation.RelatingSpace
+                    for relation in boundaries
+                    if relation.is_a("IfcRelSpaceBoundary")
+                    and getattr(relation, "RelatingSpace", None) is not None
+                ]
+                key = "IfcRelSpaceBoundary.RelatingSpace occupancy context"
+                contexts = []
+                has_unknown_context = False
+                applicable = False
+                for space in related_spaces:
+                    occupant_load = property_value(
+                        space,
+                        condition["occupant_load"]["property_set"],
+                        condition["occupant_load"]["property"],
+                    )
+                    classification = ComplianceEngine._classification_context(
+                        space,
+                        condition["occupancy_group"]["classification_system"],
+                    )
+                    fallback = condition["occupancy_group"].get("fallback_property")
+                    fallback_group = (
+                        property_value(
+                            space,
+                            fallback["property_set"],
+                            fallback["property"],
+                        )
+                        if fallback and not classification
+                        else None
+                    )
+                    occupancy_groups = (
+                        [record["code"] for record in classification]
+                        if classification
+                        else ([str(fallback_group)] if fallback_group is not None else [])
+                    )
+                    try:
+                        numeric_occupant_load = (
+                            float(occupant_load) if occupant_load is not None else None
+                        )
+                    except (TypeError, ValueError):
+                        numeric_occupant_load = None
+                    contexts.append(
+                        {
+                            "space_guid": space.GlobalId,
+                            "space_name": space.Name or space.GlobalId,
+                            "occupant_load": occupant_load,
+                            "numeric_occupant_load": numeric_occupant_load,
+                            "occupancy_groups": occupancy_groups,
+                            "occupancy_group_source": (
+                                "IFC_CLASSIFICATION"
+                                if classification
+                                else (
+                                    f'{fallback["property_set"]}.{fallback["property"]}'
+                                    if fallback_group is not None
+                                    else None
+                                )
+                            ),
+                            "classification": classification,
+                        }
+                    )
+                    has_unknown_context = has_unknown_context or (
+                        numeric_occupant_load is None or not occupancy_groups
+                    )
+                    applicable = applicable or (
+                        numeric_occupant_load is not None
+                        and numeric_occupant_load >= float(condition["minimum_occupant_load"])
+                    ) or any(
+                        group.upper() == condition["hazardous_group"].upper()
+                        for group in occupancy_groups
+                    )
+                details[key] = {
+                    "relationship_count": len(boundaries),
+                    "related_spaces": contexts,
+                }
+                if not related_spaces or (not applicable and has_unknown_context):
+                    return (
+                        condition.get("missing_status", "NOT_CHECKABLE"),
+                        "Applicability cannot be decided from a complete door-to-space occupancy context.",
+                        details,
+                    )
+                if not applicable:
+                    return (
+                        "NOT_APPLICABLE",
+                        "Related spaces have occupant loads below 50 and are not Group H occupancies.",
+                        details,
+                    )
+                continue
+
             value = property_value(element, condition["property_set"], condition["property"])
             key = f'{condition["property_set"]}.{condition["property"]}'
             details[key] = value
@@ -83,11 +204,18 @@ class ComplianceEngine:
                     requirement["property_set"],
                     requirement["property"],
                 )
-                if value is None:
-                    missing.append(f'{requirement["property_set"]}.{requirement["property"]}')
+                expected = requirement.get("expected_value")
+                if value is None or (expected is not None and value != expected):
+                    label = f'{requirement["property_set"]}.{requirement["property"]}'
+                    if expected is not None:
+                        label += f"={str(expected).lower()}"
+                    missing.append(label)
             elif requirement["kind"] == "attribute":
                 if getattr(element, requirement["attribute"], None) is None:
                     missing.append(f'Ifc attribute {requirement["attribute"]}')
+            elif requirement["kind"] == "relationship":
+                if not tuple(getattr(element, requirement["inverse_attribute"], ()) or ()):
+                    missing.append(requirement["relationship"])
         return missing
 
     @staticmethod
@@ -113,6 +241,100 @@ class ComplianceEngine:
                     "vertex_count": evidence.vertex_count,
                     "triangle_count": evidence.triangle_count,
                     "controlled_fixture_assumption": "orthogonal floor and ceiling",
+                },
+            )
+        if metric == "egress_swing_direction_conformance":
+            path = "Pset_ComplianceRelationships.SwingDirection"
+            raw_value = property_value(
+                element,
+                "Pset_ComplianceRelationships",
+                "SwingDirection",
+            )
+            normalized = str(raw_value).strip().upper()
+            if normalized not in {"EGRESS", "INGRESS"}:
+                raise ValueError(
+                    f"{path} must be one of EGRESS or INGRESS, received {raw_value!r}"
+                )
+            boundaries = tuple(getattr(element, "ProvidesBoundaries", ()) or ())
+            return (
+                1.0 if normalized == "EGRESS" else 0.0,
+                "RELATIONSHIP",
+                {
+                    "property_path": path,
+                    "raw_value": raw_value,
+                    "normalized_value": normalized,
+                    "relationship_type": "IfcRelSpaceBoundary",
+                    "relationship_guids": sorted(
+                        relation.GlobalId
+                        for relation in boundaries
+                        if relation.is_a("IfcRelSpaceBoundary")
+                    ),
+                    "related_space_guids": sorted(
+                        relation.RelatingSpace.GlobalId
+                        for relation in boundaries
+                        if relation.is_a("IfcRelSpaceBoundary")
+                        and getattr(relation, "RelatingSpace", None) is not None
+                    ),
+                },
+            )
+        if metric == "egress_path_to_exit_discharge":
+            pending = [element]
+            visited_spaces: set[str] = set()
+            traversed_doors: set[str] = set()
+            unclassified_doors: set[str] = set()
+            relationship_guids: set[str] = set()
+            exit_door_guid = None
+            while pending:
+                space = pending.pop(0)
+                if space.GlobalId in visited_spaces:
+                    continue
+                visited_spaces.add(space.GlobalId)
+                boundaries = tuple(getattr(space, "BoundedBy", ()) or ())
+                for relation in boundaries:
+                    if not relation.is_a("IfcRelSpaceBoundary"):
+                        continue
+                    relationship_guids.add(relation.GlobalId)
+                    door = getattr(relation, "RelatedBuildingElement", None)
+                    if door is None or not door.is_a("IfcDoor"):
+                        continue
+                    traversed_doors.add(door.GlobalId)
+                    is_exit = property_value(
+                        door,
+                        "Pset_ComplianceTopology",
+                        "IsExitDischarge",
+                    )
+                    if is_exit is None:
+                        unclassified_doors.add(door.GlobalId)
+                    if is_exit is True:
+                        exit_door_guid = door.GlobalId
+                        pending.clear()
+                        break
+                    for adjoining in tuple(getattr(door, "ProvidesBoundaries", ()) or ()):
+                        adjoining_space = getattr(adjoining, "RelatingSpace", None)
+                        if (
+                            adjoining_space is not None
+                            and adjoining_space.GlobalId not in visited_spaces
+                        ):
+                            pending.append(adjoining_space)
+            if not relationship_guids:
+                raise ValueError("No IfcRelSpaceBoundary topology is available for the space")
+            if exit_door_guid is None and unclassified_doors:
+                raise ValueError(
+                    "Exit-discharge classification is missing for traversed door(s): "
+                    + ", ".join(sorted(unclassified_doors))
+                )
+            return (
+                1.0 if exit_door_guid else 0.0,
+                "TOPOLOGY",
+                {
+                    "algorithm": "breadth-first traversal of IfcSpace–IfcDoor boundaries",
+                    "visited_space_guids": sorted(visited_spaces),
+                    "traversed_door_guids": sorted(traversed_doors),
+                    "relationship_guids": sorted(relationship_guids),
+                    "exit_discharge_door_guid": exit_door_guid,
+                    "completeness_assertion": (
+                        "Pset_ComplianceTopology.TopologyCoverageComplete"
+                    ),
                 },
             )
         raise ValueError(f"Unsupported metric: {metric}")
@@ -142,11 +364,31 @@ class ComplianceEngine:
         result = self._base_result(rule, element)
         status, reason, applicability = self._applicability(rule, element)
         if status:
+            applicability_source = (
+                "IFC_RELATIONSHIP"
+                if "IfcRelSpaceBoundary.RelatingSpace occupancy context" in applicability
+                else "IFC_PROPERTY"
+            )
             result.update(
                 status=status,
                 reason=reason,
-                evidence_source="IFC_PROPERTY",
+                evidence_source=applicability_source,
                 evidence_details={"applicability": applicability},
+            )
+            return result
+
+        if rule.get("automation_level") == "manual_judgement":
+            result.update(
+                status="MANUAL_REVIEW_REQUIRED",
+                reason=(
+                    "This requirement depends on field-observable door operation and "
+                    "is not inferred from the available IFC representation."
+                ),
+                evidence_source="HUMAN_INSPECTION",
+                evidence_details={
+                    "applicability": applicability,
+                    "manual_checklist": rule["mapping"]["manual_checklist"],
+                },
             )
             return result
 
@@ -159,7 +401,9 @@ class ComplianceEngine:
                 evidence_details={
                     "missing": missing,
                     "ids_specifications": [
-                        item["ids_specification"] for item in rule["required_information"]
+                        item["ids_specification"]
+                        for item in rule["required_information"]
+                        if "ids_specification" in item
                     ],
                     "applicability": applicability,
                 },
@@ -172,21 +416,42 @@ class ComplianceEngine:
             result.update(
                 status="NOT_CHECKABLE",
                 reason=f"Measurement could not be computed: {error}",
-                evidence_source="IFC_GEOMETRY",
+                evidence_source=rule["execution_method"],
                 evidence_details={"error_type": type(error).__name__},
             )
             return result
 
         threshold = float(rule["requirement"]["value"])
-        passed = measured >= threshold
-        result.update(
-            status="PASS" if passed else "FAIL",
-            measured_value=round(measured, 3),
-            reason=(
+        operator = rule["requirement"]["operator"]
+        if operator == ">=":
+            passed = measured >= threshold
+        elif operator == "==":
+            passed = measured == threshold
+        else:
+            raise ValueError(f"Unsupported comparison operator: {operator}")
+        metric = rule["requirement"]["metric"]
+        if metric == "egress_swing_direction_conformance":
+            reason = (
+                "Door swing is documented in the direction of egress travel."
+                if passed
+                else "Door swing is documented against the direction of egress travel."
+            )
+        elif metric == "egress_path_to_exit_discharge":
+            reason = (
+                "The modeled boundary graph contains a path to an exit-discharge door."
+                if passed
+                else "The asserted-complete boundary graph has no path to an exit-discharge door."
+            )
+        else:
+            reason = (
                 f"Measured {measured:.3f} mm is greater than or equal to {threshold:.3f} mm."
                 if passed
                 else f"Measured {measured:.3f} mm is below the required {threshold:.3f} mm."
-            ),
+            )
+        result.update(
+            status="PASS" if passed else "FAIL",
+            measured_value=round(measured, 3),
+            reason=reason,
             evidence_source=f"IFC_{source}",
             evidence_details={"measurement": details, "applicability": applicability},
         )
@@ -223,6 +488,11 @@ class ComplianceEngine:
             "Doors expose a clear opening width": "IDS-DOOR-CLEAR-WIDTH",
             "Doors expose a clear opening height": "IDS-DOOR-CLEAR-HEIGHT",
             "Spaces expose a geometric representation": "IDS-EGRESS-SPACE-GEOMETRY",
+            "Doors expose an authored swing direction": "IDS-DOOR-SWING-DIRECTION",
+            "Spaces declare topology export completeness": "IDS-EGRESS-SPACE-TOPOLOGY",
+            "Spaces expose an IBC occupancy classification": (
+                "IDS-SPACE-OCCUPANCY-CLASSIFICATION"
+            ),
         }
         specifications = []
         for specification in specification_file.specifications:

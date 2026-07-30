@@ -26,9 +26,9 @@ frontend contract + browser smoke test
 
 ## 人工 ground truth
 
-`tests/expected/ground_truth.csv` 包含 15 个 `(model, GlobalId, rule)` 判定。夹具和 ground truth 由脚本写出，但预期状态在脚本中逐例人工声明，不由检查器回填。
+`tests/expected/ground_truth.csv` 包含 30 个 `(model, GlobalId, rule)` 判定。夹具和 ground truth 由脚本写出，但预期状态在脚本中逐例人工声明，不由检查器回填。
 
-每条规则都有：
+每条确定性规则都有：
 
 - 明显 PASS；
 - 阈值相等的边界 PASS；
@@ -36,13 +36,17 @@ frontend contract + browser smoke test
 - 适用但必要信息缺失的 NOT_CHECKABLE；
 - 明确不适用的 NOT_APPLICABLE。
 
+人工操作性规则覆盖四个 `MANUAL_REVIEW_REQUIRED` 和一个 `NOT_APPLICABLE`，并断言没有自动 PASS/FAIL。
+
 ## 重要断言
 
-- 规则库通过 JSON Schema，且三条规则均为 `human_verified`。
+- 规则库通过 JSON Schema，且六条规则均为 `human_verified`。
 - 规则阈值与选定 IBC 条款的人工复核记录一致。
 - `NOT_CHECKABLE` 的 `measured_value` 始终为空，不能变成 FAIL。
 - 几何规则保存 bbox、顶点和三角形证据。
-- IDS 对三个缺失信息夹具各识别一个失败实例。
+- IDS 的六个 specification 各识别一个受控缺失信息实例，包括 IFC classification facet。
+- 门摆向规则保存关联空间、occupant-load 边界和 `IfcRelSpaceBoundary` GlobalId。
+- 疏散连续性规则保存 BFS 访问空间、经过门、关系和 exit-discharge 证据。
 - rule → elements 的实例能从 element → rules 反向查回同一规则。
 - 三维 scene 的每个 mesh 都能通过 IFC `GlobalId` 对齐。
 - scene manifest/chunks 保持稳定 GlobalId 顺序、每块上限、无重复/遗漏和越界 404。
@@ -70,7 +74,7 @@ python scripts/benchmark_model.py --iterations 7
 
 1. 启动 `ifc-mvd serve`。
 2. 检查页面无控制台错误。
-3. 逐条选择三条规则，确认目标类别与状态颜色更新。
+3. 逐条选择六条规则，确认目标类别与五种状态颜色更新。
 4. 点击一个网格与一行结果，确认选中对象一致。
 5. 旋转和缩放模型，确认拾取仍可用。
 6. 切换状态过滤器，确认表格和三维视图同步。

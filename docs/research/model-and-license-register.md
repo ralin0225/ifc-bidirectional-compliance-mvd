@@ -7,7 +7,7 @@
 
 | 模型 | Schema | 大小 | SHA-256 | 来源与 provenance | 许可 | 用途 |
 |---|---:|---:|---|---|---|---|
-| `data/models/generated/ibc_egress_demo.ifc` | IFC4 | 14,120 bytes | `743f344f6f1bddd273f896fd99865189aff06dca90697b2576572d51846a583f` | `scripts/generate_fixture.py` 确定性生成；IFC header 标记非认证设计 | 仓库 MIT；生成器与 header 均明确 | 单元、边界、浏览器和导入去重测试 |
+| `data/models/generated/ibc_egress_demo.ifc` | IFC4 | 19,579 bytes | `ed4b9244a776c201ed0c6497af58cff453ae45c28ce0c49bbccc8b731d486529` | `scripts/generate_fixture.py` 确定性生成；IFC header 标记非认证设计 | 仓库 MIT；生成器与 header 均明确 | 属性、几何、classification、关系、拓扑、人工边界、浏览器和导入去重测试 |
 
 该模型是受控合成数据，不是现实项目，也不能作为真实作者工具兼容性或性能证据。
 

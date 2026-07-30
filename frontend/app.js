@@ -268,12 +268,15 @@ function renderRules() {
     const counts = Object.entries(rule.status_counts || {})
       .map(([status, count]) => `<span class="mini-status">${escapeHtml(statusLabel(status))} ${count}</span>`)
       .join("");
+    const requirement = rule.requirement.operator === "manual_review"
+      ? t("rules.manualRequirement")
+      : `${rule.requirement.metric} ${rule.requirement.operator} ${rule.requirement.value} ${rule.requirement.unit}`;
     return `
       <button class="rule-card ${rule.rule_id === state.selectedRuleId ? "selected" : ""}"
         data-rule-id="${escapeHtml(rule.rule_id)}" role="listitem">
         <span class="rule-code">IBC §${escapeHtml(rule.source.section)} · ${escapeHtml(rule.execution_method)}</span>
         <span class="rule-title">${escapeHtml(t(`rules.${rule.rule_id}.title`))}</span>
-        <span class="rule-threshold">${escapeHtml(rule.requirement.metric)} ≥ ${rule.requirement.value} ${rule.requirement.unit}</span>
+        <span class="rule-threshold">${escapeHtml(requirement)}</span>
         <span class="rule-statuses">${counts}</span>
       </button>`;
   }).join("");
@@ -322,6 +325,12 @@ function metricText(value, unit) {
   return value === null || value === undefined ? "—" : `${Number(value).toFixed(1)} ${unit}`;
 }
 
+function requiredText(result) {
+  return result.operator === "manual_review"
+    ? t("rules.manualRequirement")
+    : `${result.operator} ${metricText(result.required_value, result.unit)}`;
+}
+
 function renderResults() {
   const results = currentRuleResults().filter((result) => state.activeStatuses.has(result.status));
   dom.resultsBody.innerHTML = results.map((result) => `
@@ -330,7 +339,7 @@ function renderResults() {
       <td><span class="status-pill status-${result.status}">${escapeHtml(statusLabel(result.status))}</span></td>
       <td><strong>${escapeHtml(result.element_name)}</strong><br><span class="guid">${escapeHtml(result.element_guid)}</span></td>
       <td class="metric">${metricText(result.measured_value, result.unit)}</td>
-      <td class="metric">${escapeHtml(result.operator)} ${metricText(result.required_value, result.unit)}</td>
+      <td class="metric">${escapeHtml(requiredText(result))}</td>
       <td>${escapeHtml(result.evidence_source || "—")}</td>
     </tr>
   `).join("");
@@ -344,10 +353,21 @@ function detailRows(details, prefix = "") {
   const rows = [];
   Object.entries(details || {}).forEach(([key, value]) => {
     const label = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(value) && value.some((item) => item && typeof item === "object")) {
+      value.forEach((item, index) => {
+        if (item && typeof item === "object") {
+          rows.push(...detailRows(item, `${label}[${index}]`));
+        } else {
+          rows.push(`<li><strong>${escapeHtml(`${label}[${index}]`)}</strong><br>${escapeHtml(item)}</li>`);
+        }
+      });
+    } else if (value && typeof value === "object") {
       rows.push(...detailRows(value, label));
     } else {
-      rows.push(`<li><strong>${escapeHtml(label)}</strong><br>${escapeHtml(Array.isArray(value) ? value.join(", ") : value)}</li>`);
+      const displayValue = value === null || value === undefined
+        ? "—"
+        : (Array.isArray(value) ? value.join(", ") : value);
+      rows.push(`<li><strong>${escapeHtml(label)}</strong><br>${escapeHtml(displayValue)}</li>`);
     }
   });
   return rows.join("");
@@ -366,6 +386,15 @@ function renderEvidence() {
   const relevantRules = state.results
     .filter((item) => item.element_guid === guid)
     .map((item) => `${item.clause} · ${item.status}`);
+  const measureBox = result.operator === "manual_review"
+    ? `<div class="measure-box">
+        <div class="measure-cell"><small>${escapeHtml(t("results.required"))}</small><strong>${escapeHtml(t("rules.manualRequirement"))}</strong></div>
+      </div>`
+    : `<div class="measure-box">
+        <div class="measure-cell"><small>${escapeHtml(t("evidence.measured"))}</small><strong>${metricText(result.measured_value, result.unit)}</strong></div>
+        <span class="operator">${escapeHtml(result.operator)}</span>
+        <div class="measure-cell"><small>${escapeHtml(t("evidence.threshold"))}</small><strong>${metricText(result.required_value, result.unit)}</strong></div>
+      </div>`;
   dom.evidencePanel.innerHTML = `
     <div class="status-banner status-${result.status}">
       <strong>${escapeHtml(statusLabel(result.status))}</strong>
@@ -373,14 +402,11 @@ function renderEvidence() {
     </div>
     <h3 class="evidence-title">${escapeHtml(result.element_name)}</h3>
     <div class="guid">${escapeHtml(result.ifc_class)} · ${escapeHtml(result.element_guid)}</div>
-    <div class="measure-box">
-      <div class="measure-cell"><small>${escapeHtml(t("evidence.measured"))}</small><strong>${metricText(result.measured_value, result.unit)}</strong></div>
-      <span class="operator">${escapeHtml(result.operator)}</span>
-      <div class="measure-cell"><small>${escapeHtml(t("evidence.threshold"))}</small><strong>${metricText(result.required_value, result.unit)}</strong></div>
-    </div>
+    ${measureBox}
     <div class="evidence-section">
       <h3>${escapeHtml(t("evidence.why"))}</h3>
       <p>${escapeHtml(t(`evidence.reason.${result.status}`))}</p>
+      <p><strong>${escapeHtml(t("evidence.recordedReason"))}:</strong> ${escapeHtml(result.reason)}</p>
     </div>
     <div class="evidence-section">
       <h3>${escapeHtml(t("evidence.sourceText"))} · IBC ${escapeHtml(rule.source.section)} · PDF ${rule.source.pdf_page}</h3>
@@ -1406,7 +1432,7 @@ dom.runChecks.addEventListener("click", async () => {
 
 async function init() {
   try {
-    state.messages = await api("/static/i18n.json");
+    state.messages = await api("/static/i18n.json?v=15");
     state.locale = preferredLocale();
     applyStaticTranslations();
     const [models, importJobs] = await Promise.all([

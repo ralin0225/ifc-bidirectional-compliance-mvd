@@ -22,6 +22,9 @@ GROUND_TRUTH_PATH = ROOT / "tests" / "expected" / "ground_truth.csv"
 RULE_WIDTH = "IBC2021-1010.1.1-WIDTH"
 RULE_HEIGHT = "IBC2021-1010.1.1-HEIGHT"
 RULE_SPACE = "IBC2021-1003.2-EGRESS-HEIGHT"
+RULE_SWING = "IBC2021-1010.1.2.1-SWING"
+RULE_CONTINUITY = "IBC2021-1003.6-EGRESS-CONTINUITY"
+RULE_OPERATIONS = "IBC2021-1010.2-DOOR-OPERATIONS"
 
 
 def stable_guid(name: str) -> str:
@@ -79,6 +82,8 @@ def add_door(
     clear_width_mm: float | None,
     clear_height_mm: float | None,
     is_egress: bool,
+    swing_direction: str | None,
+    is_exit_discharge: bool,
 ) -> str:
     nominal_width = clear_width_mm or 900.0
     nominal_height = clear_height_mm or 2100.0
@@ -109,6 +114,19 @@ def add_door(
         measurements["ClearOpeningHeight"] = model.createIfcLengthMeasure(clear_height_mm)
     if measurements:
         add_properties(model, door, "Pset_ComplianceMeasurements", measurements)
+    if swing_direction is not None:
+        add_properties(
+            model,
+            door,
+            "Pset_ComplianceRelationships",
+            {"SwingDirection": swing_direction},
+        )
+    add_properties(
+        model,
+        door,
+        "Pset_ComplianceTopology",
+        {"IsExitDischarge": is_exit_discharge},
+    )
     return door.GlobalId
 
 
@@ -122,6 +140,9 @@ def add_space(
     x_mm: float,
     height_mm: float | None,
     is_egress: bool,
+    occupant_load: float,
+    occupancy_group: str,
+    topology_complete: bool | None,
 ) -> str:
     space = api("root.create_entity", model, ifc_class="IfcSpace", name=name)
     set_guid(space, key)
@@ -152,6 +173,19 @@ def add_space(
             "PlaceholderHeight": height_mm or 400.0,
         },
     )
+    add_properties(
+        model,
+        space,
+        "Pset_ComplianceContext",
+        {"ServedOccupantLoad": occupant_load},
+    )
+    if topology_complete is not None:
+        add_properties(
+            model,
+            space,
+            "Pset_ComplianceTopology",
+            {"TopologyCoverageComplete": topology_complete},
+        )
     return space.GlobalId
 
 
@@ -186,15 +220,43 @@ def generate() -> tuple[Path, Path]:
     api("aggregate.assign_object", model, products=[storey], relating_object=building)
 
     truth: list[dict[str, str]] = []
+    occupancy_classification = model.create_entity(
+        "IfcClassification",
+        Source="2021 IBC",
+        Edition="2021",
+        Name="IBC Occupancy Group",
+        Description="Controlled fixture classification for rule applicability",
+    )
+    occupancy_references = {
+        group: model.create_entity(
+            "IfcClassificationReference",
+            Identification=group,
+            Name=f"Group {group}",
+            ReferencedSource=occupancy_classification,
+        )
+        for group in ("B", "H")
+    }
 
     door_cases = [
-        ("door-pass", "Door PASS - generous opening", 0.0, 900.0, 2100.0, True, "PASS"),
-        ("door-boundary", "Door PASS - exact threshold", 1300.0, 813.0, 2032.0, True, "PASS"),
-        ("door-fail", "Door FAIL - undersized", 2600.0, 760.0, 1980.0, True, "FAIL"),
-        ("door-missing", "Door NOT_CHECKABLE - clear dimensions absent", 3900.0, None, None, True, "NOT_CHECKABLE"),
-        ("door-non-egress", "Door NOT_APPLICABLE - service access", 5200.0, 700.0, 1900.0, False, "NOT_APPLICABLE"),
+        ("door-pass", "Door PASS - generous opening", 0.0, 900.0, 2100.0, True, "EGRESS", True, "PASS", "PASS"),
+        ("door-boundary", "Door PASS - exact threshold", 1300.0, 813.0, 2032.0, True, "EGRESS", True, "PASS", "PASS"),
+        ("door-fail", "Door FAIL - undersized", 2600.0, 760.0, 1980.0, True, "INGRESS", False, "FAIL", "FAIL"),
+        ("door-missing", "Door NOT_CHECKABLE - required properties absent", 3900.0, None, None, True, None, False, "NOT_CHECKABLE", "NOT_CHECKABLE"),
+        ("door-non-egress", "Door NOT_APPLICABLE - service access", 5200.0, 700.0, 1900.0, False, "INGRESS", False, "NOT_APPLICABLE", "NOT_APPLICABLE"),
     ]
-    for key, name, x, width, height, is_egress, expected in door_cases:
+    door_guids = []
+    for (
+        key,
+        name,
+        x,
+        width,
+        height,
+        is_egress,
+        swing_direction,
+        is_exit_discharge,
+        expected,
+        swing_expected,
+    ) in door_cases:
         guid = add_door(
             model,
             storey,
@@ -205,7 +267,10 @@ def generate() -> tuple[Path, Path]:
             clear_width_mm=width,
             clear_height_mm=height,
             is_egress=is_egress,
+            swing_direction=swing_direction,
+            is_exit_discharge=is_exit_discharge,
         )
+        door_guids.append(guid)
         for rule_id in (RULE_WIDTH, RULE_HEIGHT):
             truth.append(
                 {
@@ -216,15 +281,49 @@ def generate() -> tuple[Path, Path]:
                     "note": name,
                 }
             )
+        truth.extend(
+            [
+                {
+                    "model_id": "ibc-egress-demo",
+                    "element_guid": guid,
+                    "rule_id": RULE_SWING,
+                    "expected_status": swing_expected,
+                    "note": name,
+                },
+                {
+                    "model_id": "ibc-egress-demo",
+                    "element_guid": guid,
+                    "rule_id": RULE_OPERATIONS,
+                    "expected_status": (
+                        "MANUAL_REVIEW_REQUIRED"
+                        if is_egress
+                        else "NOT_APPLICABLE"
+                    ),
+                    "note": name,
+                },
+            ]
+        )
 
     space_cases = [
-        ("space-pass", "Egress Space PASS - 2400 mm", 0.0, 2400.0, True, "PASS"),
-        ("space-boundary", "Egress Space PASS - exact 2286 mm", 3000.0, 2286.0, True, "PASS"),
-        ("space-fail", "Egress Space FAIL - 2200 mm", 6000.0, 2200.0, True, "FAIL"),
-        ("space-missing", "Egress Space NOT_CHECKABLE - no representation", 9000.0, None, True, "NOT_CHECKABLE"),
-        ("space-non-egress", "Space NOT_APPLICABLE - storage", 12000.0, 2100.0, False, "NOT_APPLICABLE"),
+        ("space-pass", "Egress Space PASS - 2400 mm", 0.0, 2400.0, True, 10.0, "H", True, "PASS", "PASS"),
+        ("space-boundary", "Egress Space PASS - exact 2286 mm", 3000.0, 2286.0, True, 50.0, "B", True, "PASS", "PASS"),
+        ("space-fail", "Egress Space FAIL - 2200 mm", 6000.0, 2200.0, True, 75.0, "B", True, "FAIL", "FAIL"),
+        ("space-missing", "Egress Space NOT_CHECKABLE - required evidence absent", 9000.0, None, True, 60.0, "B", None, "NOT_CHECKABLE", "NOT_CHECKABLE"),
+        ("space-non-egress", "Space NOT_APPLICABLE - storage", 12000.0, 2100.0, False, 10.0, "B", True, "NOT_APPLICABLE", "NOT_APPLICABLE"),
     ]
-    for key, name, x, height, is_egress, expected in space_cases:
+    space_guids = []
+    for (
+        key,
+        name,
+        x,
+        height,
+        is_egress,
+        occupant_load,
+        occupancy_group,
+        topology_complete,
+        expected,
+        continuity_expected,
+    ) in space_cases:
         guid = add_space(
             model,
             storey,
@@ -234,7 +333,19 @@ def generate() -> tuple[Path, Path]:
             x_mm=x,
             height_mm=height,
             is_egress=is_egress,
+            occupant_load=occupant_load,
+            occupancy_group=occupancy_group,
+            topology_complete=topology_complete,
         )
+        space_guids.append(guid)
+        if key != "space-missing":
+            model.create_entity(
+                "IfcRelAssociatesClassification",
+                GlobalId=stable_guid(f"space-occupancy-classification-{key}"),
+                Name="Controlled IBC occupancy classification",
+                RelatedObjects=(model.by_guid(guid),),
+                RelatingClassification=occupancy_references[occupancy_group],
+            )
         truth.append(
             {
                 "model_id": "ibc-egress-demo",
@@ -243,6 +354,27 @@ def generate() -> tuple[Path, Path]:
                 "expected_status": expected,
                 "note": name,
             }
+        )
+        truth.append(
+            {
+                "model_id": "ibc-egress-demo",
+                "element_guid": guid,
+                "rule_id": RULE_CONTINUITY,
+                "expected_status": continuity_expected,
+                "note": name,
+            }
+        )
+
+    for index, (door_guid, space_guid) in enumerate(zip(door_guids, space_guids, strict=True)):
+        model.create_entity(
+            "IfcRelSpaceBoundary",
+            GlobalId=stable_guid(f"space-boundary-{index}"),
+            Name=f"Controlled boundary {index + 1}",
+            RelatingSpace=model.by_guid(space_guid),
+            RelatedBuildingElement=model.by_guid(door_guid),
+            ConnectionGeometry=None,
+            PhysicalOrVirtualBoundary="PHYSICAL",
+            InternalOrExternalBoundary="INTERNAL",
         )
 
     # IfcOpenShell assigns random GlobalIds to relationships and property sets.

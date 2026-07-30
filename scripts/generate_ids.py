@@ -77,6 +77,46 @@ def generate() -> Path:
             )
         ],
     )
+    add_specification(
+        ids,
+        identifier="IDS-DOOR-SWING-DIRECTION",
+        name="Doors expose an authored swing direction",
+        entity="IFCDOOR",
+        requirements=[
+            ifctester.ids.Property(
+                propertySet="Pset_ComplianceRelationships",
+                baseName="SwingDirection",
+                dataType="IFCLABEL",
+                cardinality="required",
+            )
+        ],
+    )
+    add_specification(
+        ids,
+        identifier="IDS-EGRESS-SPACE-TOPOLOGY",
+        name="Spaces declare topology export completeness",
+        entity="IFCSPACE",
+        requirements=[
+            ifctester.ids.Property(
+                propertySet="Pset_ComplianceTopology",
+                baseName="TopologyCoverageComplete",
+                dataType="IFCBOOLEAN",
+                cardinality="required",
+            )
+        ],
+    )
+    add_specification(
+        ids,
+        identifier="IDS-SPACE-OCCUPANCY-CLASSIFICATION",
+        name="Spaces expose an IBC occupancy classification",
+        entity="IFCSPACE",
+        requirements=[
+            ifctester.ids.Classification(
+                system="IBC Occupancy Group",
+                cardinality="required",
+            )
+        ],
+    )
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     if not ids.to_xml(OUTPUT):
         raise RuntimeError("Generated IDS does not validate against the buildingSMART IDS schema")
@@ -86,4 +126,3 @@ def generate() -> Path:
 
 if __name__ == "__main__":
     generate()
-

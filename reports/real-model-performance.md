@@ -23,10 +23,10 @@
 | IfcProduct | 3,298 |
 | IfcDoor + IfcSpace | 523 |
 | scene 三角形 | 28,780 |
-| 当前规则结果 | 777 |
+| 当前规则结果 | 1,554 |
 
-777 个结果均为 `NOT_CHECKABLE`：现实模型没有当前规则要求的自定义
-`Pset_ComplianceMeasurements` / applicability mapping。这证明导入、索引、渲染和审计链可工作，但不构成 777 项合规失败，也不证明现实模型已经可自动判定。
+1,554 个结果均为 `NOT_CHECKABLE`：现实模型没有当前规则要求的自定义
+measurements、applicability、relationship context 与 topology completeness mapping。这证明导入、索引、渲染和审计链可工作，但不构成 1,554 项合规失败，也不证明现实模型已经可自动判定。
 
 ## 后端基线
 
@@ -42,16 +42,16 @@ python scripts/benchmark_model.py \
 
 | 指标 | Median | P95 / max | 初始现实模型预算 |
 |---|---:|---:|---:|
-| IFC 校验、导入与 3,298 产品语义索引 | 7,859.9 ms | 8,291.9 ms | ≤ 12 s |
-| 777 条结果整批 checker | 689.8 ms | 690.8 ms | ≤ 1.5 s |
-| 523 构件 scene build | 3,825.1 ms | 3,886.7 ms | ≤ 6 s |
-| SQLite 完整 run + 777 results 读取 | 9.2 ms | 9.7 ms | ≤ 50 ms |
-| 英文 NL parse + deterministic query | 0.149 ms | 0.272 ms | ≤ 10 ms |
+| IFC 校验、导入与 3,298 产品语义索引 | 9,878.8 ms | 13,379.6 ms | ≤ 15 s |
+| 1,554 条结果整批 checker | 1,284.0 ms | 1,316.1 ms | ≤ 1.5 s |
+| 523 构件 scene build | 3,917.4 ms | 4,121.4 ms | ≤ 6 s |
+| SQLite 完整 run + 1,554 results 读取 | 14.6 ms | 16.8 ms | ≤ 50 ms |
+| 英文 NL parse + deterministic query | 0.187 ms | 0.228 ms | ≤ 10 ms |
 
 - legacy `/api/scene` 单一 JSON：1,660,470 bytes；保留兼容但前端不再使用。
 - manifest 将 523 个构件按稳定 GlobalId 顺序分为 6 块（最多 100 elements）；响应为
   235,228、208,835、285,188、404,621、424,106、103,382 bytes，最大 424,106 bytes。
-- engine load + checker + scene Python `tracemalloc` peak：13,179,983 bytes；预算 ≤ 25 MiB。
+- engine load + checker + scene Python `tracemalloc` peak：13,195,820 bytes；预算 ≤ 25 MiB。
 - `tracemalloc` 不包含 IfcOpenShell native allocation 和 graphics driver。
 
 ## 真实浏览器
@@ -96,12 +96,12 @@ engine warm、页面冷导航 3 次：
 
 完整加载后的 element selection / filter 单次复验为 142.7 / 49.3 ms，late-chunk element 的 isolate + viewpoint URL 保存/恢复成功。优化后的 warm first-useful median 相对旧路径减少 81.8%。
 
-真实浏览器随后创建了一个 `COMPLETED` run：777 results，保存的 checker duration 585.09 ms。导入、载入、交互和 run 全程 console warning/error 为 0。
+旧三规则浏览器基线创建过一个 `COMPLETED` run：777 results，保存的 checker duration 585.09 ms。checker 0.2.0 六规则版本随后创建 1,554-result run，保存的 checker duration 为 1,244.9 ms；全部结果均为 `NOT_CHECKABLE`，console error 为 0。本节旧交互数字只用于 scene-chunk 优化前后对比。
 
 ## 结论与下一步
 
 - 20 MiB 上传边界覆盖此 13.0 MB 模型，IFC2X3 路径已被真实资产验证。
 - legacy 1.66 MB payload 仍兼容；产品 UI 已迁移到 manifest + 最多 100-element chunks，并把 IDS 从 first useful render 的阻塞链移出。
 - 分块显著改善感知首屏，但完整几何仍需约 4.5 s；后续可考虑持久几何缓存、byte/triangle-aware chunk 和压缩。
-- 现实模型 property/type fallback 尚未实现；所有 777 个 `NOT_CHECKABLE` 是可检查性证据，不是法规结论。
+- 现实模型 property/type/relationship fallback 尚未实现；所有 1,554 个 `NOT_CHECKABLE` 是可检查性证据，不是法规结论。
 - 当前只是一台机器、一个作者工具年代和一个模型；预算是回归 guardrail，不是产品 SLO。

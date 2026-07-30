@@ -2,7 +2,7 @@
 
 - 日期：2026-07-30
 - 目的：快速回归 smoke baseline，不代表现实项目
-- 模型：`ibc_egress_demo.ifc`，IFC4，14,120 bytes，13 个 IfcProduct，10 个受检/场景构件，120 个三角形
+- 模型：`ibc_egress_demo.ifc`，IFC4，19,579 bytes，13 个 IfcProduct，10 个受检/场景构件，120 个三角形
 - Python：CPython 3.12.10
 - 机器：Windows 11、AMD64、Intel64 Family 6 Model 158、12 logical CPUs、31.8 GiB RAM
 - 浏览器：本地 Chromium 内核 in-app browser，1265×720 CSS px，device pixel ratio 2
@@ -19,14 +19,14 @@ python scripts/benchmark_model.py --iterations 7
 
 | 指标 | Median | P95 | 当前受控夹具预算 |
 |---|---:|---:|---:|
-| IFC 校验、导入与语义索引 | 107.881 ms | 109.806 ms | ≤ 250 ms |
-| 15 条结果整批 checker | 7.897 ms | 8.325 ms | ≤ 50 ms |
-| 10 构件 scene build | 26.506 ms | 28.106 ms | ≤ 100 ms |
-| SQLite 完整 run + 15 results 读取 | 2.005 ms | 2.715 ms | ≤ 20 ms |
-| 英文 NL parse + deterministic query | 0.057 ms | 0.082 ms | ≤ 10 ms |
+| IFC 校验、导入与语义索引 | 109.979 ms | 115.744 ms | ≤ 250 ms |
+| 30 条结果整批 checker | 17.259 ms | 18.303 ms | ≤ 50 ms |
+| 10 构件 scene build | 26.141 ms | 37.780 ms | ≤ 100 ms |
+| SQLite 完整 run + 30 results 读取 | 2.083 ms | 3.000 ms | ≤ 20 ms |
+| 英文 NL parse + deterministic query | 0.056 ms | 0.079 ms | ≤ 10 ms |
 
-- 单 chunk scene JSON：9,359 bytes；预算 ≤ 25 KiB。
-- engine load + checker + scene 的 Python `tracemalloc` peak：103,730 bytes；预算 ≤ 1 MiB。
+- 单 chunk scene JSON：10,370 bytes；预算 ≤ 25 KiB。
+- engine load + checker + scene 的 Python `tracemalloc` peak：149,010 bytes；预算 ≤ 1 MiB。
 - `tracemalloc` 不包含 IfcOpenShell 等 native allocation，也不包含图形驱动内存。
 
 ## 浏览器

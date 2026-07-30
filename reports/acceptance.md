@@ -2,12 +2,12 @@
 
 - 日期：2026-07-30
 - 分支：`product/full-platform`
-- 版本：`0.1.0`
+- 版本：`0.2.0`
 - 受控模型：`data/models/generated/ibc_egress_demo.ifc`
 - IFC schema：IFC4
-- 规则：3
+- 规则：6
 - 受检构件：10
-- 确定性结果：15
+- 审计结果：30
 
 本报告记录可核查的 MVD 证据，不声称完整覆盖 IBC、官方认证、法律可靠性或现实项目性能。
 
@@ -15,7 +15,7 @@
 
 ```text
 python -m pytest
-55 passed
+63 passed
 
 node --check frontend/app.js
 exit code 0
@@ -33,8 +33,9 @@ GitHub Actions 质量矩阵 run
 
 - SQLite schema v4 migration、restart persistence、run 保存/比较和 model-scoped query history；
 - IFC 上传边界、签名/schema 校验、失败状态、取消、重启恢复、去重和语义索引；
-- 规则 JSON Schema、PASS/FAIL/NOT_CHECKABLE/NOT_APPLICABLE、阈值边界和 15 条人工声明 ground truth；
-- IfcOpenShell 属性与世界坐标 bbox，以及 buildingSMART IDS 1.0 信息要求分层；
+- 规则 JSON Schema、五态结果、数值/关系/拓扑边界和 30 条人工声明 ground truth；
+- IfcOpenShell 属性、`IfcRelAssociatesClassification`、`IfcRelSpaceBoundary`、边界图 BFS 与世界坐标 bbox，以及 buildingSMART IDS 1.0 信息要求分层；
+- §1010.2 操作性规则只进入人工复核，不允许自动 PASS/FAIL；
 - 中英文 NL → validated DSL → deterministic evidence golden corpus；
 - JSON、CSV、HTML/打印和 BCF 3.0 导出及 BCF round-trip；
 - rule → element 与 element → rule、API 合约、i18n 完整性和前端能力契约；
@@ -44,10 +45,11 @@ GitHub Actions 质量矩阵 run
 
 | 状态 | 数量 |
 |---|---:|
-| PASS | 6 |
-| FAIL | 3 |
-| NOT_CHECKABLE | 3 |
-| NOT_APPLICABLE | 3 |
+| PASS | 10 |
+| FAIL | 5 |
+| NOT_CHECKABLE | 5 |
+| NOT_APPLICABLE | 6 |
+| MANUAL_REVIEW_REQUIRED | 4 |
 
 ## 真实浏览器验收
 
@@ -61,7 +63,7 @@ GitHub Actions 质量矩阵 run
 - 现实模型通过 6 个稳定 scene chunks 增量加载；首块可用后继续加载，late-chunk element 的 isolate/viewpoint 保存恢复保持正确；
 - 390×844 单列布局，无横向溢出；
 - 性能采样期间 5 次冷导航及选择/筛选交互，console warning/error 为 0。
-- 通过文件选择器导入登记的 13.0 MB CC BY 4.0 clinic IFC2X3，打开 523 构件工作区并保存 777-result run；现实模型浏览器指标和限制单独记录。
+- 通过文件选择器导入登记的 13.0 MB CC BY 4.0 clinic IFC2X3，打开 523 构件工作区；checker 0.2.0 六规则复验保存 1,554-result run（全部 `NOT_CHECKABLE`，1,244.9 ms），console error 为 0。
 
 浏览器性能数字及限制见
 [`performance-baseline.md`](performance-baseline.md)。
@@ -76,5 +78,5 @@ GitHub Actions 质量矩阵 run
 - 合成模型来源、SHA-256 和许可登记在
   [`model-and-license-register.md`](../docs/research/model-and-license-register.md)；
 - 许可现实模型以固定 commit、13,003,205-byte exact size、SHA-256、CC BY 4.0 署名和 offline fallback 登记；模型本体留在 ignored runtime；
-- 现实模型性能与 777 项 `NOT_CHECKABLE` mapping 限制见
+- 现实模型性能与 1,554 项 `NOT_CHECKABLE` mapping 限制见
   [`real-model-performance.md`](real-model-performance.md)。

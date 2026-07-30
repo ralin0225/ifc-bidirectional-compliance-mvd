@@ -38,7 +38,7 @@ def isolated_api_store(tmp_path, monkeypatch):
 def test_health_and_models():
     health = client.get("/api/health")
     assert health.status_code == 200
-    assert health.json()["rule_count"] == 3
+    assert health.json()["rule_count"] == 6
     assert health.json()["element_count"] == 10
     assert health.json()["storage"]["schema_version"] == 4
     assert client.get("/api/models").json()[0]["schema"] == "IFC4"
@@ -120,10 +120,11 @@ def test_check_endpoint_is_deterministic_and_structured():
     assert first.json()["run_id"] != second.json()["run_id"]
     assert first.json()["results"] == second.json()["results"]
     assert first.json()["status_counts"] == {
-        "FAIL": 3,
-        "NOT_APPLICABLE": 3,
-        "NOT_CHECKABLE": 3,
-        "PASS": 6,
+        "FAIL": 5,
+        "MANUAL_REVIEW_REQUIRED": 4,
+        "NOT_APPLICABLE": 6,
+        "NOT_CHECKABLE": 5,
+        "PASS": 10,
     }
     history = client.get("/api/check-runs", params={"limit": 2}).json()
     assert history["total"] >= 2
@@ -176,7 +177,7 @@ def test_ifc_import_indexes_model_and_runs_checks():
     run = client.post("/api/checks/run", params={"model_id": model_id})
     assert run.status_code == 200
     assert run.json()["model_id"] == model_id
-    assert run.json()["result_count"] == 15
+    assert run.json()["result_count"] == 30
     assert {result["model_id"] for result in run.json()["results"]} == {model_id}
     assert client.get("/api/scene", params={"model_id": model_id}).status_code == 200
 

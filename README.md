@@ -1,6 +1,6 @@
 # IFC ↔ IBC 双向合规探索 MVD
 
-这是一个正在向完整平台演进的教学与研究工具。它把 2021 IBC 的三条人工复核规则、buildingSMART IDS 1.0 信息要求、IFC4 构件、确定性检查结果和计算证据连成一条可双向查询的链：
+这是一个正在向完整平台演进的教学与研究工具。它把 2021 IBC 的六条人工复核规则、buildingSMART IDS 1.0 信息要求、IFC4 构件、确定性检查结果和计算证据连成一条可双向查询的链：
 
 ```text
 IBC document → clause → structured rule → IFC requirement/geometry
@@ -19,9 +19,12 @@ IBC document → clause → structured rule → IFC requirement/geometry
 - 2021 IBC §1010.1.1：疏散门净宽 `>= 813 mm`
 - 2021 IBC §1010.1.1：疏散门净高 `>= 2032 mm`
 - 2021 IBC §1003.2：疏散空间净高 `>= 2286 mm`
-- buildingSMART IDS 1.0 对属性和几何表示的可检查性验证
-- IfcOpenShell 属性读取与世界坐标几何包围盒计算
-- `PASS`、`FAIL`、`NOT_APPLICABLE`、`NOT_CHECKABLE`
+- 2021 IBC §1010.1.2.1：通过 `IfcRelSpaceBoundary` 与 `IfcRelAssociatesClassification` 读取关联空间人数/occupancy group，判断门开启方向
+- 2021 IBC §1003.6：在显式完整性声明保护下遍历 `IfcSpace ↔ IfcDoor` 边界拓扑
+- 2021 IBC §1010.2：门操作性保持为人工现场核验，不由 IFC 自动推断
+- buildingSMART IDS 1.0 对属性、几何表示和拓扑前置信息的可检查性验证
+- IfcOpenShell 属性读取、关系遍历与世界坐标几何包围盒计算
+- `PASS`、`FAIL`、`NOT_APPLICABLE`、`NOT_CHECKABLE`、`MANUAL_REVIEW_REQUIRED`
 - rule → elements 与 element → rules 双向 REST API
 - 自动迁移 SQLite，持久化项目、模型元数据、检查运行和逐项证据
 - 唯一运行号、确定性执行号、分页历史和两次运行比较 API
@@ -30,7 +33,7 @@ IBC document → clause → structured rule → IFC requirement/geometry
 - 可审计 query history；核心查询不调用 LLM、不生成 SQL、无需 API key
 - 已保存运行可导出 JSON、CSV、双语打印 HTML 和 BCF 3.0 `.bcfzip`
 - 无 CDN 的 WebGL 三维视图、状态筛选、构件拾取、证据面板和局部 provenance graph
-- 15 条人工 ground truth、边界值和端到端自动化测试
+- 30 条人工 ground truth、数值/关系/拓扑边界和端到端自动化测试
 
 ## 一条命令启动
 
@@ -139,7 +142,7 @@ docs/               架构、规则编写、研究对应、限制和 ADR
 
 ## 原始材料与版权
 
-原始 2021 IBC PDF 不在仓库中，也不是运行依赖。仓库只保存定位复核所必需的短摘录、条款号、页码、阈值和人工计算解释。原始大型 IFC 不进入 Git；核心演示使用代码生成的 14 KB IFC4 夹具。另有一项固定 commit、checksum、署名和 CC BY 4.0 许可的真实 clinic IFC 登记，可按需下载到 ignored runtime，核心启动与 CI 不依赖网络模型。
+原始 2021 IBC PDF 不在仓库中，也不是运行依赖。仓库只保存定位复核所必需的短摘录、条款号、页码、阈值和人工计算解释。原始大型 IFC 不进入 Git；核心演示使用代码生成的约 19 KB IFC4 夹具。另有一项固定 commit、checksum、署名和 CC BY 4.0 许可的真实 clinic IFC 登记，可按需下载到 ignored runtime，核心启动与 CI 不依赖网络模型。
 
 进一步阅读：
 
