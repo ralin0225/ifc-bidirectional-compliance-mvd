@@ -13,11 +13,15 @@ const state = {
   results: [],
   elements: [],
   runs: [],
+  models: [],
+  importJobs: [],
+  importNotice: null,
   queryResponse: null,
   ids: null,
   health: null,
   selectedRuleId: null,
   selectedElementGuid: null,
+  modelId: null,
   activeStatuses: new Set(Object.keys(STATUS)),
 };
 
@@ -65,6 +69,17 @@ const dom = {
   restoreView: document.querySelector("#restoreView"),
   modelSearch: document.querySelector("#modelSearch"),
   modelTree: document.querySelector("#modelTree"),
+  reloadModels: document.querySelector("#reloadModels"),
+  modelsBody: document.querySelector("#modelsBody"),
+  modelsEmpty: document.querySelector("#modelsEmpty"),
+  importForm: document.querySelector("#importForm"),
+  ifcFile: document.querySelector("#ifcFile"),
+  chooseIfcFile: document.querySelector("#chooseIfcFile"),
+  ifcFileName: document.querySelector("#ifcFileName"),
+  modelSource: document.querySelector("#modelSource"),
+  modelLicense: document.querySelector("#modelLicense"),
+  importModel: document.querySelector("#importModel"),
+  importProgress: document.querySelector("#importProgress"),
 };
 
 const escapeHtml = (value) => String(value ?? "")
@@ -114,6 +129,7 @@ function syncUrl(updates = {}) {
   const url = new URL(window.location.href);
   const values = {
     lang: state.locale,
+    model: state.modelId,
     rule: state.selectedRuleId,
     element: state.selectedElementGuid,
     ...updates,
@@ -123,6 +139,12 @@ function syncUrl(updates = {}) {
     else url.searchParams.delete(key);
   });
   window.history.replaceState({}, "", url);
+}
+
+function withModel(path) {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("model_id", state.modelId);
+  return `${url.pathname}${url.search}`;
 }
 
 function renderLocalizedUi() {
@@ -139,9 +161,11 @@ function renderLocalizedUi() {
   renderResults();
   renderEvidence();
   renderRuns();
+  renderModels();
   renderQuery();
   renderModelTree();
   viewer.updateControls();
+  renderImportProgress();
   const rule = currentRule();
   if (rule) dom.viewerTitle.textContent = `§${rule.source.section} · ${rule.target.ifc_class}`;
   dom.legend.innerHTML = Object.keys(STATUS).map((status) => `
@@ -154,8 +178,20 @@ function renderLocalizedUi() {
 async function api(path, options) {
   const response = await fetch(path, options);
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`${response.status} ${detail}`);
+    const raw = await response.text();
+    let detail = null;
+    try {
+      detail = JSON.parse(raw).detail;
+    } catch {
+      detail = raw;
+    }
+    if (detail?.code) {
+      const localized = t(`models.error.${detail.code}`);
+      const error = new Error(localized.startsWith("models.error.") ? detail.message : localized);
+      error.code = detail.code;
+      throw error;
+    }
+    throw new Error(`${response.status} ${typeof detail === "string" ? detail : JSON.stringify(detail)}`);
   }
   return response.json();
 }
@@ -319,7 +355,7 @@ async function renderGraph() {
   const query = state.selectedElementGuid
     ? `element_guid=${encodeURIComponent(state.selectedElementGuid)}`
     : `rule_id=${encodeURIComponent(state.selectedRuleId)}`;
-  const graph = await api(`/api/graph/ego?${query}`);
+  const graph = await api(`/api/graph/ego?${query}&model_id=${encodeURIComponent(state.modelId)}`);
   const svg = dom.graph;
   const width = svg.clientWidth || 420;
   const height = svg.clientHeight || 250;
@@ -429,6 +465,66 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function renderModels() {
+  dom.modelsEmpty.hidden = state.models.length > 0;
+  dom.modelsBody.innerHTML = state.models.map((model) => {
+    const current = model.model_id === state.modelId;
+    return `
+      <tr>
+        <td>
+          <strong>${escapeHtml(model.name)}</strong>
+          ${current ? `<span class="model-active">${escapeHtml(t("models.current"))}</span>` : ""}
+          <span class="guid">${escapeHtml(model.model_id)} · ${escapeHtml(
+            t(model.source_kind === "FIXTURE" ? "models.fixture" : "models.upload"),
+          )}</span>
+        </td>
+        <td>${escapeHtml(model.schema_version)}</td>
+        <td class="metric">${model.element_count}</td>
+        <td><span class="model-hash" title="${escapeHtml(model.source_sha256)}">${escapeHtml(model.source_sha256)}</span></td>
+        <td>
+          ${current ? "—" : `<button class="model-open" type="button"
+            data-open-model="${escapeHtml(model.model_id)}">${escapeHtml(t("models.open"))}</button>`}
+        </td>
+      </tr>`;
+  }).join("");
+  dom.modelsBody.querySelectorAll("[data-open-model]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("model", button.dataset.openModel);
+      ["rule", "element", "run", "view"].forEach((key) => url.searchParams.delete(key));
+      window.location.assign(url);
+    });
+  });
+}
+
+async function loadModels() {
+  const [models, jobs] = await Promise.all([
+    api("/api/models"),
+    api("/api/import-jobs?limit=20"),
+  ]);
+  state.models = models;
+  state.importJobs = jobs.items;
+  renderModels();
+}
+
+function renderImportProgress() {
+  const notice = state.importNotice;
+  dom.ifcFileName.textContent = dom.ifcFile.files[0]?.name || t("models.noFile");
+  if (!notice) return;
+  if (notice.type === "progress") {
+    dom.importProgress.className = "import-progress";
+    dom.importProgress.textContent = `${t(`models.phase.${notice.phase}`)} · ${notice.progress}%`;
+  } else if (notice.type === "success") {
+    dom.importProgress.className = "import-progress success";
+    dom.importProgress.textContent = t("models.imported", { modelId: notice.modelId });
+  } else {
+    dom.importProgress.className = "import-progress error";
+    dom.importProgress.textContent = t("models.failed", {
+      error: t(`models.error.${notice.code || "UNKNOWN"}`),
+    });
+  }
+}
+
 function renderRuns() {
   dom.runsEmpty.hidden = state.runs.length > 0;
   dom.runsBody.innerHTML = state.runs.map((run) => {
@@ -464,7 +560,7 @@ function renderRuns() {
 }
 
 async function loadRuns() {
-  const response = await api("/api/check-runs?limit=50");
+  const response = await api(withModel("/api/check-runs?limit=50"));
   state.runs = response.items;
   renderRuns();
 }
@@ -1136,6 +1232,7 @@ dom.queryForm.addEventListener("submit", async (event) => {
         context: {
           rule_id: state.selectedRuleId,
           element_guid: state.selectedElementGuid,
+          model_id: state.modelId,
         },
       }),
     });
@@ -1154,11 +1251,68 @@ dom.localeSelect.addEventListener("change", () => {
   renderLocalizedUi();
   renderGraph().catch(console.error);
 });
+dom.reloadModels.addEventListener("click", () => loadModels().catch((error) => {
+  showToast(t("toast.failed", { error: error.message }));
+}));
+dom.chooseIfcFile.addEventListener("click", () => dom.ifcFile.click());
+dom.ifcFile.addEventListener("change", () => renderImportProgress());
+dom.importForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const file = dom.ifcFile.files[0];
+  if (!file) {
+    showToast(t("models.chooseFile"));
+    return;
+  }
+  dom.importModel.disabled = true;
+  dom.importModel.textContent = t("models.importing");
+  state.importNotice = { type: "progress", phase: "queued", progress: 0 };
+  renderImportProgress();
+  try {
+    const parameters = new URLSearchParams({
+      filename: file.name,
+      source: dom.modelSource.value.trim() || "local user upload",
+      license: dom.modelLicense.value.trim() || "user-provided; redistribution not granted",
+    });
+    const submitted = await api(`/api/import-jobs?${parameters}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/x-step" },
+      body: file,
+    });
+    let job = submitted;
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      job = await api(submitted.poll_url);
+      state.importNotice = {
+        type: "progress",
+        phase: job.phase,
+        progress: job.progress,
+      };
+      renderImportProgress();
+      if (["COMPLETED", "FAILED", "CANCELLED"].includes(job.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    if (job.status !== "COMPLETED") {
+      const code = job.error?.code || "UNKNOWN";
+      const error = new Error(t(`models.error.${code}`));
+      error.code = code;
+      throw error;
+    }
+    state.importNotice = { type: "success", modelId: job.model_id };
+    renderImportProgress();
+    await loadModels();
+    showToast(t("models.imported", { modelId: job.model_id }));
+  } catch (error) {
+    state.importNotice = { type: "error", code: error.code || "UNKNOWN" };
+    renderImportProgress();
+  } finally {
+    dom.importModel.disabled = false;
+    dom.importModel.textContent = t("models.import");
+  }
+});
 dom.runChecks.addEventListener("click", async () => {
   dom.runChecks.disabled = true;
   dom.runChecks.textContent = t("action.running");
   try {
-    const response = await api("/api/checks/run", { method: "POST" });
+    const response = await api(withModel("/api/checks/run"), { method: "POST" });
     state.results = response.results;
     renderStatusControls();
     renderResults();
@@ -1183,21 +1337,33 @@ async function init() {
     state.messages = await api("/static/i18n.json");
     state.locale = preferredLocale();
     applyStaticTranslations();
+    const [models, importJobs] = await Promise.all([
+      api("/api/models"),
+      api("/api/import-jobs?limit=20"),
+    ]);
+    state.models = models;
+    state.importJobs = importJobs.items;
+    const parameters = new URLSearchParams(window.location.search);
+    const requestedModel = parameters.get("model");
+    state.modelId = models.some((model) => model.model_id === requestedModel)
+      ? requestedModel
+      : models.find((model) => model.source_kind === "FIXTURE")?.model_id
+        || models[0]?.model_id;
+    if (!state.modelId) throw new Error("No local model is available.");
     const [health, rules, results, scene, ids, runs] = await Promise.all([
       api("/api/health"),
-      api("/api/rules"),
-      api("/api/results"),
-      api("/api/scene"),
-      api("/api/ids/report"),
-      api("/api/check-runs?limit=50"),
+      api(withModel("/api/rules")),
+      api(withModel("/api/results")),
+      api(withModel("/api/scene")),
+      api(withModel("/api/ids/report")),
+      api(withModel("/api/check-runs?limit=50")),
     ]);
-    state.health = health;
+    state.health = { ...health, element_count: scene.elements.length };
     state.rules = rules;
     state.results = results;
     state.elements = scene.elements;
     state.ids = ids;
     state.runs = runs.items;
-    const parameters = new URLSearchParams(window.location.search);
     const requestedRule = parameters.get("rule");
     const requestedElement = parameters.get("element");
     state.selectedRuleId = rules.some((rule) => rule.rule_id === requestedRule)

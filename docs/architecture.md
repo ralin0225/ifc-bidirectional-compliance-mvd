@@ -21,6 +21,8 @@ flowchart LR
     Engine --> Results["结果 + Evidence"]
     Results --> API["FastAPI 双向查询"]
     Results --> SQLite["SQLite 项目 / 模型 / 运行 / 结果审计库"]
+    IFC --> Import["大小/签名验证 → Import job → 语义索引"]
+    Import --> SQLite
     SQLite --> API
     Rules --> API
     IFC --> API
@@ -40,6 +42,7 @@ flowchart LR
 | `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
 | `nl_query.py` | 中英文解析、Pydantic DSL 校验和确定性 domain query | 不生成 SQL，不调用 LLM，不决定新合规状态 |
 | `exports.py` | 从已审计运行生成 JSON、CSV、HTML 和 BCF 3.0 | 不重新执行 checker，不嵌入 IFC |
+| `imports.py` | 验证上传 envelope、hash 路径、IfcOpenShell 解析和语义索引 | 不验证设计版权，不提供 OS 级 parser sandbox |
 | `frontend/` | 协调选择、筛选、空间树、三维审查工具、视点和解释 | 不在浏览器重新判定合规 |
 
 ## 数据主键
@@ -51,6 +54,8 @@ scene API 同时提供每个构件的 Project → Site → Building → Storey �
 `execution_id` 由 IFC 文件字节、规范化规则库和检查器版本的 SHA-256 摘要产生。相同输入得到相同执行号，便于比较重复运行。
 
 每次实际执行另有唯一 `run_id`。相同输入的两次检查共享确定性 `execution_id`，但各自保留开始时间、耗时、状态计数和逐项证据。默认数据库位于被 Git 忽略的 `data/runtime/`，启动时自动执行 `schema_migrations`。
+
+schema v3 增加持久化 `import_jobs`、模型导入 metadata 和 `(model_id, GlobalId)` 元素索引；v4 让查询历史记录 model id。导入文件以服务端 job id 暂存、以内容 SHA-256 派生模型 ID，原文件名不参与磁盘路径。相同内容确定性去重。
 
 ## 本地化
 

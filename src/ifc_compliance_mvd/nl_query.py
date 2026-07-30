@@ -42,6 +42,7 @@ class QueryContext(BaseModel):
 
     rule_id: str | None = Field(default=None, max_length=120)
     element_guid: str | None = Field(default=None, max_length=64)
+    model_id: str | None = Field(default=None, max_length=128)
 
 
 class NaturalLanguageQueryRequest(BaseModel):

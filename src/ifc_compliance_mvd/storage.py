@@ -13,7 +13,7 @@ from typing import Iterator
 
 from .paths import DATABASE_PATH
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 DEFAULT_PROJECT_ID = "project-egress-research"
 
 MIGRATIONS = {
@@ -85,6 +85,56 @@ MIGRATIONS = {
         CREATE INDEX query_history_created_idx
             ON query_history(created_at DESC);
     """,
+    3: """
+        ALTER TABLE models ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'FIXTURE';
+        ALTER TABLE models ADD COLUMN stored_path TEXT;
+        ALTER TABLE models ADD COLUMN original_filename TEXT;
+        ALTER TABLE models ADD COLUMN file_size INTEGER;
+        ALTER TABLE models ADD COLUMN license TEXT NOT NULL DEFAULT '';
+        ALTER TABLE models ADD COLUMN unit_scale_to_m REAL;
+        ALTER TABLE models ADD COLUMN diagnostics_json TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE models ADD COLUMN imported_at TEXT;
+
+        CREATE TABLE import_jobs (
+            job_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(project_id),
+            status TEXT NOT NULL CHECK (
+                status IN ('QUEUED', 'VALIDATING', 'INDEXING', 'COMPLETED', 'FAILED', 'CANCELLED')
+            ),
+            phase TEXT NOT NULL,
+            progress INTEGER NOT NULL CHECK (progress BETWEEN 0 AND 100),
+            original_filename TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            source_sha256 TEXT NOT NULL,
+            model_id TEXT REFERENCES models(model_id),
+            deduplicated INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            completed_at TEXT,
+            error_json TEXT
+        );
+
+        CREATE INDEX import_jobs_created_idx
+            ON import_jobs(created_at DESC);
+
+        CREATE TABLE elements (
+            model_id TEXT NOT NULL REFERENCES models(model_id) ON DELETE CASCADE,
+            global_id TEXT NOT NULL,
+            ifc_class TEXT NOT NULL,
+            name TEXT NOT NULL,
+            spatial_path_json TEXT NOT NULL DEFAULT '[]',
+            properties_json TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (model_id, global_id)
+        );
+
+        CREATE INDEX elements_class_idx ON elements(model_id, ifc_class);
+        CREATE INDEX elements_name_idx ON elements(model_id, name);
+    """,
+    4: """
+        ALTER TABLE query_history ADD COLUMN model_id TEXT;
+        CREATE INDEX query_history_model_created_idx
+            ON query_history(model_id, created_at DESC);
+    """,
 }
 
 
@@ -142,6 +192,25 @@ class ComplianceStore:
                     "INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                     (version, utc_now()),
                 )
+            if SCHEMA_VERSION >= 3:
+                connection.execute(
+                    """
+                    UPDATE import_jobs
+                    SET status = 'FAILED', phase = 'interrupted', progress = 0,
+                        completed_at = ?, error_json = ?
+                    WHERE status IN ('QUEUED', 'VALIDATING', 'INDEXING')
+                    """,
+                    (
+                        utc_now(),
+                        json.dumps(
+                            {
+                                "code": "PROCESS_RESTARTED",
+                                "message": "The application stopped before the import completed.",
+                            },
+                            sort_keys=True,
+                        ),
+                    ),
+                )
 
     def schema_version(self) -> int:
         with self.connect() as connection:
@@ -181,15 +250,21 @@ class ComplianceStore:
                 """
                 INSERT INTO models(
                     model_id, project_id, name, schema_version, source,
-                    source_sha256, element_count, created_at
+                    source_sha256, element_count, created_at, source_kind,
+                    original_filename, file_size, license, unit_scale_to_m,
+                    diagnostics_json, imported_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'FIXTURE', ?, ?, 'MIT; generated fixture',
+                    0.001, ?, ?)
                 ON CONFLICT(model_id) DO UPDATE SET
                     name = excluded.name,
                     schema_version = excluded.schema_version,
                     source = excluded.source,
                     source_sha256 = excluded.source_sha256,
-                    element_count = excluded.element_count
+                    element_count = excluded.element_count,
+                    original_filename = excluded.original_filename,
+                    file_size = excluded.file_size,
+                    diagnostics_json = excluded.diagnostics_json
                 """,
                 (
                     model_id,
@@ -200,7 +275,258 @@ class ComplianceStore:
                     model_hash,
                     element_count,
                     now,
+                    model_path.name,
+                    model_path.stat().st_size,
+                    json.dumps({"origin": "reproducible fixture"}, sort_keys=True),
+                    now,
                 ),
+            )
+
+    def create_import_job(
+        self,
+        *,
+        original_filename: str,
+        file_size: int,
+        source_sha256: str,
+        project_id: str = DEFAULT_PROJECT_ID,
+    ) -> str:
+        job_id = f"import-{uuid.uuid4().hex}"
+        with self.connect() as connection:
+            project = connection.execute(
+                "SELECT 1 FROM projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if project is None:
+                raise ValueError(f"Unknown project: {project_id}")
+            connection.execute(
+                """
+                INSERT INTO import_jobs(
+                    job_id, project_id, status, phase, progress,
+                    original_filename, file_size, source_sha256, created_at
+                )
+                VALUES (?, ?, 'QUEUED', 'queued', 0, ?, ?, ?, ?)
+                """,
+                (
+                    job_id,
+                    project_id,
+                    original_filename,
+                    file_size,
+                    source_sha256,
+                    utc_now(),
+                ),
+            )
+        return job_id
+
+    def update_import_job(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        phase: str,
+        progress: int,
+        model_id: str | None = None,
+        deduplicated: bool = False,
+        error: dict | None = None,
+    ) -> None:
+        now = utc_now()
+        completed_at = now if status in {"COMPLETED", "FAILED", "CANCELLED"} else None
+        with self.connect() as connection:
+            existing = connection.execute(
+                "SELECT started_at FROM import_jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+            if existing is None:
+                raise ValueError(f"Unknown import job: {job_id}")
+            started_at = existing["started_at"] or (
+                now if status in {"VALIDATING", "INDEXING"} else None
+            )
+            connection.execute(
+                """
+                UPDATE import_jobs
+                SET status = ?, phase = ?, progress = ?, model_id = COALESCE(?, model_id),
+                    deduplicated = ?, started_at = COALESCE(started_at, ?),
+                    completed_at = ?, error_json = ?
+                WHERE job_id = ?
+                """,
+                (
+                    status,
+                    phase,
+                    progress,
+                    model_id,
+                    int(deduplicated),
+                    started_at,
+                    completed_at,
+                    json.dumps(error, sort_keys=True) if error else None,
+                    job_id,
+                ),
+            )
+
+    def claim_import_job(self, job_id: str) -> bool:
+        now = utc_now()
+        with self.connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE import_jobs
+                SET status = 'VALIDATING', phase = 'content-validated',
+                    progress = 15, started_at = ?
+                WHERE job_id = ? AND status = 'QUEUED'
+                """,
+                (now, job_id),
+            )
+        return cursor.rowcount == 1
+
+    def cancel_import_job(self, job_id: str) -> dict | None:
+        now = utc_now()
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM import_jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            if row["status"] != "QUEUED":
+                return self._decode_import_job(row)
+            connection.execute(
+                """
+                UPDATE import_jobs
+                SET status = 'CANCELLED', phase = 'cancelled', progress = 0,
+                    completed_at = ?
+                WHERE job_id = ? AND status = 'QUEUED'
+                """,
+                (now, job_id),
+            )
+            updated = connection.execute(
+                "SELECT * FROM import_jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+        return self._decode_import_job(updated)
+
+    @staticmethod
+    def _decode_import_job(row: sqlite3.Row) -> dict:
+        item = dict(row)
+        item["deduplicated"] = bool(item["deduplicated"])
+        error_json = item.pop("error_json")
+        item["error"] = json.loads(error_json) if error_json else None
+        return item
+
+    def get_import_job(self, job_id: str) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM import_jobs WHERE job_id = ?", (job_id,)
+            ).fetchone()
+        return self._decode_import_job(row) if row else None
+
+    def list_import_jobs(self, *, limit: int = 50, offset: int = 0) -> dict:
+        with self.connect() as connection:
+            total = connection.execute(
+                "SELECT COUNT(*) AS total FROM import_jobs"
+            ).fetchone()["total"]
+            rows = connection.execute(
+                """
+                SELECT * FROM import_jobs
+                ORDER BY created_at DESC, job_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        return {
+            "items": [self._decode_import_job(row) for row in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+    def register_imported_model(
+        self,
+        *,
+        model_id: str,
+        project_id: str,
+        name: str,
+        schema_version: str,
+        source: str,
+        source_sha256: str,
+        stored_path: str,
+        original_filename: str,
+        file_size: int,
+        license_name: str,
+        unit_scale_to_m: float,
+        diagnostics: dict,
+        elements: list[dict],
+    ) -> None:
+        now = utc_now()
+        with self.connect() as connection:
+            connection.execute(
+                "UPDATE projects SET updated_at = ? WHERE project_id = ?",
+                (now, project_id),
+            )
+            connection.execute(
+                """
+                INSERT INTO models(
+                    model_id, project_id, name, schema_version, source,
+                    source_sha256, element_count, created_at, source_kind,
+                    stored_path, original_filename, file_size, license,
+                    unit_scale_to_m, diagnostics_json, imported_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'UPLOAD', ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(model_id) DO NOTHING
+                """,
+                (
+                    model_id,
+                    project_id,
+                    name,
+                    schema_version,
+                    source,
+                    source_sha256,
+                    len(elements),
+                    now,
+                    stored_path,
+                    original_filename,
+                    file_size,
+                    license_name,
+                    unit_scale_to_m,
+                    json.dumps(diagnostics, sort_keys=True),
+                    now,
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT OR REPLACE INTO elements(
+                    model_id, global_id, ifc_class, name,
+                    spatial_path_json, properties_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        model_id,
+                        item["global_id"],
+                        item["ifc_class"],
+                        item["name"],
+                        json.dumps(item["spatial_path"], sort_keys=True),
+                        json.dumps(item["properties"], sort_keys=True),
+                    )
+                    for item in elements
+                ],
+            )
+
+    def replace_model_elements(self, model_id: str, elements: list[dict]) -> None:
+        with self.connect() as connection:
+            connection.execute("DELETE FROM elements WHERE model_id = ?", (model_id,))
+            connection.executemany(
+                """
+                INSERT INTO elements(
+                    model_id, global_id, ifc_class, name,
+                    spatial_path_json, properties_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        model_id,
+                        item["global_id"],
+                        item["ifc_class"],
+                        item["name"],
+                        json.dumps(item["spatial_path"], sort_keys=True),
+                        json.dumps(item["properties"], sort_keys=True),
+                    )
+                    for item in elements
+                ],
             )
 
     def save_completed_run(
@@ -263,11 +589,11 @@ class ComplianceStore:
     def run_and_save(self, engine) -> tuple[str, list[dict]]:
         started_at = utc_now()
         start = perf_counter()
-        results = engine.run(persist=True)
+        results = engine.run(persist=False)
         duration_ms = round((perf_counter() - start) * 1000, 3)
         run_id = self.save_completed_run(
             execution_id=engine.execution_id,
-            model_id="ibc-egress-demo",
+            model_id=engine.model_id,
             checker_version=engine.checker_version,
             rule_count=len(engine.rules),
             results=results,
@@ -305,7 +631,91 @@ class ComplianceStore:
             models = connection.execute(
                 "SELECT * FROM models ORDER BY created_at DESC"
             ).fetchall()
-        return [dict(row) for row in models]
+        return [self._decode_model(row, include_private=False) for row in models]
+
+    @staticmethod
+    def _decode_model(row: sqlite3.Row, *, include_private: bool) -> dict:
+        item = dict(row)
+        item["diagnostics"] = json.loads(item.pop("diagnostics_json"))
+        if not include_private:
+            item.pop("stored_path", None)
+        return item
+
+    def get_model(self, model_id: str, *, include_private: bool = False) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM models WHERE model_id = ?", (model_id,)
+            ).fetchone()
+        return self._decode_model(row, include_private=include_private) if row else None
+
+    def find_model_by_hash(self, source_sha256: str) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM models WHERE source_sha256 = ? ORDER BY created_at LIMIT 1",
+                (source_sha256,),
+            ).fetchone()
+        return self._decode_model(row, include_private=False) if row else None
+
+    def list_elements(
+        self,
+        model_id: str,
+        *,
+        ifc_class: str | None = None,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict | None:
+        if self.get_model(model_id) is None:
+            return None
+        clauses = ["model_id = ?"]
+        parameters: list[object] = [model_id]
+        if ifc_class:
+            clauses.append("ifc_class = ?")
+            parameters.append(ifc_class)
+        if search:
+            clauses.append(
+                "(global_id LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\' "
+                "OR properties_json LIKE ? ESCAPE '\\')"
+            )
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            parameters.extend([f"%{escaped}%"] * 3)
+        where = " AND ".join(clauses)
+        with self.connect() as connection:
+            total = connection.execute(
+                f"SELECT COUNT(*) AS total FROM elements WHERE {where}",
+                parameters,
+            ).fetchone()["total"]
+            rows = connection.execute(
+                f"""
+                SELECT * FROM elements WHERE {where}
+                ORDER BY ifc_class, name, global_id
+                LIMIT ? OFFSET ?
+                """,
+                [*parameters, limit, offset],
+            ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["spatial_path"] = json.loads(item.pop("spatial_path_json"))
+            item["properties"] = json.loads(item.pop("properties_json"))
+            items.append(item)
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+    def get_element(self, model_id: str, global_id: str) -> dict | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM elements
+                WHERE model_id = ? AND global_id = ?
+                """,
+                (model_id, global_id),
+            ).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["spatial_path"] = json.loads(item.pop("spatial_path_json"))
+        item["properties"] = json.loads(item.pop("properties_json"))
+        return item
 
     def list_runs(
         self,
@@ -412,6 +822,7 @@ class ComplianceStore:
         dsl: dict,
         result_count: int,
         warnings: list[str],
+        model_id: str | None = None,
     ) -> str:
         query_id = f"query-{uuid.uuid4().hex}"
         with self.connect() as connection:
@@ -419,9 +830,9 @@ class ComplianceStore:
                 """
                 INSERT INTO query_history(
                     query_id, original_utterance, locale, dsl_json,
-                    result_count, warnings_json, created_at
+                    result_count, warnings_json, created_at, model_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     query_id,
@@ -431,6 +842,7 @@ class ComplianceStore:
                     result_count,
                     json.dumps(warnings, sort_keys=True),
                     utc_now(),
+                    model_id,
                 ),
             )
         return query_id

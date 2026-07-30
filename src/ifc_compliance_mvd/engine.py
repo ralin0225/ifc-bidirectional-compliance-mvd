@@ -32,10 +32,12 @@ class ComplianceEngine:
         model_path: Path = MODEL_PATH,
         ids_path: Path = IDS_PATH,
         results_path: Path = RESULTS_PATH,
+        model_id: str = MODEL_ID,
     ) -> None:
         self.model_path = model_path
         self.ids_path = ids_path
         self.results_path = results_path
+        self.model_id = model_id
         self.collection = load_rule_collection()
         self.rules = index_rules(self.collection)
         self.model = open_model(model_path)
@@ -123,7 +125,7 @@ class ComplianceEngine:
             "element_guid": element.GlobalId,
             "element_name": element.Name or element.GlobalId,
             "ifc_class": element.is_a(),
-            "model_id": MODEL_ID,
+            "model_id": self.model_id,
             "status": None,
             "measured_value": None,
             "required_value": rule["requirement"]["value"],
@@ -204,7 +206,7 @@ class ComplianceEngine:
             payload = {
                 "execution_id": self.execution_id,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
-                "model_id": MODEL_ID,
+                "model_id": self.model_id,
                 "checker_version": CHECKER_VERSION,
                 "results": self.results,
             }

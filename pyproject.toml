@@ -11,6 +11,7 @@ requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
 authors = [{ name = "Ruilin" }]
 dependencies = [
+  "defusedxml==0.7.1",
   "fastapi==0.116.1",
   "ifcopenshell==0.8.3.post2",
   "ifctester==0.8.3",
@@ -20,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "bcf-client==0.8.5",
   "httpx==0.28.1",
   "pytest==8.4.1",
 ]

@@ -30,12 +30,12 @@
 ## 查询、图和界面
 
 - 项目、模型元数据、运行和结果已保存到可迁移 SQLite；元素语义索引、几何和关系图仍是当前模型的内存投影。
-- 当前数据库只登记内置可重建模型，尚未开放不可信 IFC 上传和多模型导入任务。
+- 已支持 20 MiB 内 IFC2X3/IFC4 系列本地导入、持久化 job、hash 去重和语义索引；IfcOpenShell 解析仍在应用进程内，没有 OS 级 CPU/memory/wall-clock sandbox，不能直接暴露给不受信公网。
 - 中英文 NL parser 是受控词典/模式垂直切片；当前 golden corpus 只有 8 条表达，不代表开放域语言理解。未识别输入会拒绝执行。
 - 没有启用 LLM adapter；当前也不支持 storey/property 复杂条件和自然语言 run comparison。
 - BCF 3.0 topic/selection 已可交换；浏览器可以把实时 camera、visibility、projection、section 和 selection 保存到 URL/localStorage，但 exporter 尚未接收该状态，BCF 仍使用稳定通用 camera，也没有 snapshot、导入或回写。
 - 浏览器 viewer 是轻量 WebGL triangle renderer：已有空间树、隐藏/隔离、单 Z 剖切和 bbox-center 测距，但没有 IFC 材质、流式加载、section cap、表面吸附、markup 或大模型 benchmark。
-- API 单进程加载一个小模型，未做上传隔离、作业队列、鉴权或多 writer 数据库并发。
+- API 可按 model id 运行检查和场景，但 UI 尚无模型版本关系、联邦坐标或跨模型 compare；job 是单进程 `BackgroundTasks`，只有 queued cancellation，没有独立 worker、鉴权或多 writer 并发。
 - `data/results/latest.json` 是本地运行产物，故意不提交。
 
 ## 生产化之前必须补齐

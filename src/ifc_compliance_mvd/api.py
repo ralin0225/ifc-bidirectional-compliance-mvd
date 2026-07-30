@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -11,6 +12,7 @@ from .engine import CHECKER_VERSION, MODEL_ID, ComplianceEngine
 from .exports import bcf_report, csv_report, html_report, json_report
 from .graph import ego_graph
 from .ifc_adapter import serialise_element
+from .imports import MAX_IFC_BYTES, ImportValidationError, ModelImportService
 from .nl_query import (
     NaturalLanguageQueryRequest,
     ParsedQuery,
@@ -20,8 +22,8 @@ from .nl_query import (
     parse_natural_language,
     validate_dsl,
 )
-from .paths import FRONTEND_PATH
-from .storage import ComplianceStore
+from .paths import FRONTEND_PATH, IMPORTS_PATH, MODEL_PATH
+from .storage import DEFAULT_PROJECT_ID, ComplianceStore
 
 app = FastAPI(
     title="IFC Bidirectional Compliance MVD",
@@ -39,6 +41,32 @@ store.seed_fixture(
     model_path=engine.model_path,
     element_count=len(engine.elements),
 )
+store.replace_model_elements(MODEL_ID, engine.serialised_elements(include_geometry=False))
+import_service = ModelImportService(store)
+engines = {MODEL_ID: engine}
+
+
+def require_model_engine(model_id: str) -> ComplianceEngine:
+    cached = engines.get(model_id)
+    if cached is not None:
+        return cached
+    record = store.get_model(model_id, include_private=True)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+    if record["source_kind"] == "FIXTURE":
+        model_path = MODEL_PATH
+    else:
+        stored_path = record.get("stored_path")
+        if not stored_path:
+            raise HTTPException(status_code=409, detail="The imported model has no stored asset.")
+        import_root = import_service.imports_path.resolve()
+        model_path = (import_root / Path(stored_path)).resolve()
+        if import_root not in model_path.parents or not model_path.is_file():
+            raise HTTPException(status_code=409, detail="The imported model asset is unavailable.")
+    loaded = ComplianceEngine(model_path=model_path, model_id=model_id)
+    loaded.run(persist=False)
+    engines[model_id] = loaded
+    return loaded
 
 
 def require_rule(rule_id: str) -> dict:
@@ -84,6 +112,141 @@ def models() -> list[dict]:
 @app.get("/api/projects")
 def projects() -> list[dict]:
     return store.list_projects()
+
+
+@app.post(
+    "/api/import-jobs",
+    status_code=202,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/octet-stream": {
+                    "schema": {"type": "string", "format": "binary"}
+                },
+                "application/x-step": {
+                    "schema": {"type": "string", "format": "binary"}
+                },
+            },
+        }
+    },
+)
+async def create_import_job(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    filename: str = Query(min_length=1, max_length=255),
+    project_id: str = Query(default=DEFAULT_PROJECT_ID, min_length=1, max_length=128),
+    source: str = Query(default="local user upload", min_length=1, max_length=500),
+    license_name: str = Query(
+        default="user-provided; redistribution not granted",
+        alias="license",
+        min_length=1,
+        max_length=200,
+    ),
+) -> dict:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header.") from error
+        if declared_length > MAX_IFC_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "code": "UPLOAD_TOO_LARGE",
+                    "message": f"The IFC upload exceeds the {MAX_IFC_BYTES // (1024 * 1024)} MiB limit.",
+                },
+            )
+    chunks = []
+    received = 0
+    async for chunk in request.stream():
+        received += len(chunk)
+        if received > MAX_IFC_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail={
+                    "code": "UPLOAD_TOO_LARGE",
+                    "message": f"The IFC upload exceeds the {MAX_IFC_BYTES // (1024 * 1024)} MiB limit.",
+                },
+            )
+        chunks.append(chunk)
+    try:
+        job_id, source_sha256 = import_service.submit(
+            payload=b"".join(chunks),
+            filename=filename,
+            media_type=request.headers.get("content-type"),
+            project_id=project_id,
+        )
+    except ImportValidationError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail={"code": error.code, "message": error.public_message},
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    background_tasks.add_task(
+        import_service.process,
+        job_id,
+        source=source,
+        license_name=license_name,
+    )
+    job = store.get_import_job(job_id)
+    return {
+        **job,
+        "source_sha256": source_sha256,
+        "poll_url": f"/api/import-jobs/{job_id}",
+    }
+
+
+@app.get("/api/import-jobs")
+def import_jobs(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    return store.list_import_jobs(limit=limit, offset=offset)
+
+
+@app.get("/api/import-jobs/{job_id}")
+def import_job(job_id: str) -> dict:
+    item = store.get_import_job(job_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Unknown import job: {job_id}")
+    return item
+
+
+@app.post("/api/import-jobs/{job_id}/cancel")
+def cancel_import_job(job_id: str) -> dict:
+    before = store.get_import_job(job_id)
+    if before is None:
+        raise HTTPException(status_code=404, detail=f"Unknown import job: {job_id}")
+    item = store.cancel_import_job(job_id)
+    if item["status"] != "CANCELLED":
+        raise HTTPException(
+            status_code=409,
+            detail="Only queued imports can be cancelled safely.",
+        )
+    return item
+
+
+@app.get("/api/models/{model_id}/elements")
+def model_elements(
+    model_id: str,
+    ifc_class: str | None = Query(default=None, min_length=1, max_length=64),
+    search: str | None = Query(default=None, min_length=1, max_length=200),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    result = store.list_elements(
+        model_id,
+        ifc_class=ifc_class,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+    return result
 
 
 @app.get("/api/check-runs")
@@ -151,35 +314,45 @@ def compare_check_runs(base_run_id: str, target_run_id: str) -> dict:
 
 @app.post("/api/query/parse", response_model=ParsedQuery)
 def parse_query(request: NaturalLanguageQueryRequest) -> ParsedQuery:
-    return parse_natural_language(request, engine)
+    return parse_natural_language(
+        request,
+        require_model_engine(request.context.model_id or MODEL_ID),
+    )
 
 
 @app.post("/api/query/execute", response_model=QueryExecutionResponse)
 def run_natural_language_query(
     request: NaturalLanguageQueryRequest,
 ) -> QueryExecutionResponse:
-    parsed = parse_natural_language(request, engine)
-    response = execute_query(parsed, engine)
+    selected_engine = require_model_engine(request.context.model_id or MODEL_ID)
+    parsed = parse_natural_language(request, selected_engine)
+    response = execute_query(parsed, selected_engine)
     response.query_id = store.save_query(
         original_utterance=parsed.original_utterance,
         locale=parsed.locale,
         dsl=parsed.dsl.model_dump(),
         result_count=response.total,
         warnings=parsed.warnings,
+        model_id=selected_engine.model_id,
     )
     return response
 
 
 @app.post("/api/query/execute-dsl", response_model=QueryExecutionResponse)
-def run_structured_query(dsl: QueryDSL) -> QueryExecutionResponse:
-    parsed = validate_dsl(dsl, engine)
-    response = execute_query(parsed, engine)
+def run_structured_query(
+    dsl: QueryDSL,
+    model_id: str = Query(default=MODEL_ID),
+) -> QueryExecutionResponse:
+    selected_engine = require_model_engine(model_id)
+    parsed = validate_dsl(dsl, selected_engine)
+    response = execute_query(parsed, selected_engine)
     response.query_id = store.save_query(
         original_utterance=parsed.original_utterance,
         locale=parsed.locale,
         dsl=dsl.model_dump(),
         result_count=response.total,
         warnings=parsed.warnings,
+        model_id=model_id,
     )
     return response
 
@@ -194,16 +367,27 @@ def query_history(
 
 @app.get("/api/models/{model_id}/elements/{global_id}")
 def model_element(model_id: str, global_id: str) -> dict:
-    if model_id != MODEL_ID:
+    if store.get_model(model_id) is None:
         raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
-    return serialise_element(require_element(global_id), include_geometry=False)
+    match = store.get_element(model_id, global_id)
+    if match is not None:
+        return match
+    selected_engine = require_model_engine(model_id)
+    try:
+        return serialise_element(
+            selected_engine.elements[global_id],
+            include_geometry=False,
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown element: {global_id}") from error
 
 
 @app.get("/api/rules")
-def rules() -> list[dict]:
-    results = engine.ensure_results()
+def rules(model_id: str = Query(default=MODEL_ID)) -> list[dict]:
+    selected_engine = require_model_engine(model_id)
+    results = selected_engine.ensure_results()
     response = []
-    for rule in engine.collection["rules"]:
+    for rule in selected_engine.collection["rules"]:
         counts = Counter(
             result["status"] for result in results if result["rule_id"] == rule["rule_id"]
         )
@@ -212,62 +396,84 @@ def rules() -> list[dict]:
 
 
 @app.get("/api/rules/{rule_id}")
-def rule(rule_id: str) -> dict:
+def rule(rule_id: str, model_id: str = Query(default=MODEL_ID)) -> dict:
     selected = require_rule(rule_id)
+    selected_engine = require_model_engine(model_id)
     return {
         **selected,
-        "results": [item for item in engine.ensure_results() if item["rule_id"] == rule_id],
+        "results": [
+            item for item in selected_engine.ensure_results() if item["rule_id"] == rule_id
+        ],
     }
 
 
 @app.get("/api/rules/{rule_id}/elements")
-def rule_elements(rule_id: str) -> list[dict]:
+def rule_elements(
+    rule_id: str,
+    model_id: str = Query(default=MODEL_ID),
+) -> list[dict]:
     require_rule(rule_id)
-    by_guid = engine.elements
+    selected_engine = require_model_engine(model_id)
+    by_guid = selected_engine.elements
     return [
         {
             **serialise_element(by_guid[result["element_guid"]]),
             "result": result,
         }
-        for result in engine.ensure_results()
+        for result in selected_engine.ensure_results()
         if result["rule_id"] == rule_id
     ]
 
 
 @app.get("/api/elements/{global_id}/rules")
-def element_rules(global_id: str) -> list[dict]:
-    require_element(global_id)
+def element_rules(
+    global_id: str,
+    model_id: str = Query(default=MODEL_ID),
+) -> list[dict]:
+    selected_engine = require_model_engine(model_id)
+    if global_id not in selected_engine.elements:
+        raise HTTPException(status_code=404, detail=f"Unknown element: {global_id}")
     return [
-        {**engine.rules[result["rule_id"]], "result": result}
-        for result in engine.ensure_results()
+        {**selected_engine.rules[result["rule_id"]], "result": result}
+        for result in selected_engine.ensure_results()
         if result["element_guid"] == global_id
     ]
 
 
 @app.get("/api/elements/{global_id}/results")
-def element_results(global_id: str) -> list[dict]:
-    require_element(global_id)
+def element_results(
+    global_id: str,
+    model_id: str = Query(default=MODEL_ID),
+) -> list[dict]:
+    selected_engine = require_model_engine(model_id)
+    if global_id not in selected_engine.elements:
+        raise HTTPException(status_code=404, detail=f"Unknown element: {global_id}")
     return [
         result
-        for result in engine.ensure_results()
+        for result in selected_engine.ensure_results()
         if result["element_guid"] == global_id
     ]
 
 
 @app.get("/api/results")
-def results(status: str | None = Query(default=None)) -> list[dict]:
-    all_results = engine.ensure_results()
+def results(
+    status: str | None = Query(default=None),
+    model_id: str = Query(default=MODEL_ID),
+) -> list[dict]:
+    all_results = require_model_engine(model_id).ensure_results()
     if status is None:
         return all_results
     return [result for result in all_results if result["status"] == status]
 
 
 @app.post("/api/checks/run")
-def run_checks() -> dict:
-    run_id, new_results = store.run_and_save(engine)
+def run_checks(model_id: str = Query(default=MODEL_ID)) -> dict:
+    selected_engine = require_model_engine(model_id)
+    run_id, new_results = store.run_and_save(selected_engine)
     return {
         "run_id": run_id,
-        "execution_id": engine.execution_id,
+        "execution_id": selected_engine.execution_id,
+        "model_id": model_id,
         "result_count": len(new_results),
         "status_counts": dict(Counter(result["status"] for result in new_results)),
         "results": new_results,
@@ -275,21 +481,27 @@ def run_checks() -> dict:
 
 
 @app.get("/api/scene")
-def scene() -> dict:
+def scene(model_id: str = Query(default=MODEL_ID)) -> dict:
+    selected_engine = require_model_engine(model_id)
     return {
-        "model_id": MODEL_ID,
+        "model_id": model_id,
         "units": "m",
-        "elements": engine.serialised_elements(include_geometry=True),
+        "elements": selected_engine.serialised_elements(include_geometry=True),
     }
 
 
 @app.get("/api/ids/report")
-def ids_report() -> dict:
-    return engine.ids_report()
+def ids_report(model_id: str = Query(default=MODEL_ID)) -> dict:
+    return require_model_engine(model_id).ids_report()
 
 
 @app.get("/api/graph/ego")
-def graph_ego(rule_id: str | None = None, element_guid: str | None = None) -> dict:
+def graph_ego(
+    rule_id: str | None = None,
+    element_guid: str | None = None,
+    model_id: str = Query(default=MODEL_ID),
+) -> dict:
+    selected_engine = require_model_engine(model_id)
     if bool(rule_id) == bool(element_guid):
         raise HTTPException(
             status_code=422,
@@ -298,8 +510,13 @@ def graph_ego(rule_id: str | None = None, element_guid: str | None = None) -> di
     if rule_id:
         require_rule(rule_id)
     if element_guid:
-        require_element(element_guid)
-    return ego_graph(engine=engine, rule_id=rule_id, element_guid=element_guid)
+        if element_guid not in selected_engine.elements:
+            raise HTTPException(status_code=404, detail=f"Unknown element: {element_guid}")
+    return ego_graph(
+        engine=selected_engine,
+        rule_id=rule_id,
+        element_guid=element_guid,
+    )
 
 
 @app.get("/")

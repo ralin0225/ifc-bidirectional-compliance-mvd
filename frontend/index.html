@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IFC compliance audit workbench</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314262d'/%3E%3Cpath d='M7 9h18M7 16h12M7 23h18' stroke='%23dbe9ea' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/styles.css?v=4">
+  <link rel="stylesheet" href="/static/styles.css?v=7">
 </head>
 <body>
   <a class="skip-link" href="#workspace" data-i18n="app.skip">跳到工作区</a>
@@ -20,6 +20,7 @@
       <span id="healthText" data-i18n="app.loading">正在载入检查器</span>
       <nav class="product-nav" aria-label="Product">
         <a href="#workspace" data-i18n="nav.workspace">检查工作区</a>
+        <a href="#models" data-i18n="nav.models">模型</a>
         <a href="#runs" data-i18n="nav.runs">运行历史</a>
       </nav>
       <label class="language-control">
@@ -181,6 +182,54 @@
       </div>
     </section>
 
+    <section id="models" class="models-panel panel">
+      <header class="panel-heading results-heading">
+        <div>
+          <p class="panel-kicker" data-i18n="models.kicker">本地模型资产</p>
+          <h2 data-i18n="models.heading">项目与模型</h2>
+          <p class="section-note" data-i18n="models.note">导入文件保存在本机 runtime 目录；模型 ID 来自内容哈希，原文件名不会成为磁盘路径。</p>
+        </div>
+        <button id="reloadModels" class="text-button" data-i18n="models.reload">刷新模型</button>
+      </header>
+      <div class="models-layout">
+        <form id="importForm" class="import-form">
+          <label for="ifcFile" data-i18n="models.file">IFC 文件</label>
+          <div class="file-choice">
+            <input id="ifcFile" class="sr-only" type="file"
+              accept=".ifc,model/ifc,application/x-step" required>
+            <button id="chooseIfcFile" class="model-open" type="button" data-i18n="models.choose">选择 IFC</button>
+            <span id="ifcFileName" data-i18n="models.noFile">尚未选择文件</span>
+          </div>
+          <label for="modelSource" data-i18n="models.source">来源说明</label>
+          <input id="modelSource" type="text" maxlength="500"
+            data-i18n-placeholder="models.sourcePlaceholder"
+            placeholder="例如：设计团队本地交付">
+          <label for="modelLicense" data-i18n="models.license">许可 / 使用权</label>
+          <input id="modelLicense" type="text" maxlength="200"
+            data-i18n-placeholder="models.licensePlaceholder"
+            placeholder="例如：仅限本项目内部审查">
+          <p class="import-boundary" data-i18n="models.boundary">最大 20 MiB；只接受带完整 STEP envelope 的 .ifc。上传内容按不可信数据处理。</p>
+          <button id="importModel" class="action-button" type="submit" data-i18n="models.import">导入并索引</button>
+          <div id="importProgress" class="import-progress" aria-live="polite"></div>
+        </form>
+        <div class="model-register">
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="models.name">模型</th>
+                <th data-i18n="models.schema">Schema</th>
+                <th data-i18n="models.elements">索引构件</th>
+                <th data-i18n="models.hash">SHA-256</th>
+                <th data-i18n="models.action">操作</th>
+              </tr>
+            </thead>
+            <tbody id="modelsBody"></tbody>
+          </table>
+          <p id="modelsEmpty" class="empty-copy" data-i18n="models.empty">尚无模型。</p>
+        </div>
+      </div>
+    </section>
+
     <section id="runs" class="runs-panel panel">
       <header class="panel-heading results-heading">
         <div>
@@ -210,6 +259,6 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/static/app.js?v=7"></script>
+  <script type="module" src="/static/app.js?v=9"></script>
 </body>
 </html>

@@ -7,6 +7,8 @@ JSON Schema / rule unit tests
         ↓
 IFC property + geometry unit tests
         ↓
+untrusted import + migration tests
+        ↓
 manual ground truth comparison
         ↓
 IDS validation
@@ -45,6 +47,8 @@ frontend contract + browser smoke test
 - 三维 scene 的每个 mesh 都能通过 IFC `GlobalId` 对齐。
 - 同一输入连续运行得到相同结果与 execution ID。
 - 前端不包含 CDN 或外部运行依赖。
+- 上传在 IfcOpenShell 之前拒绝路径文件名、非 IFC 扩展、错误 MIME、缺失 STEP envelope 和超限 body。
+- import job、模型 metadata 和语义索引在 SQLite 重启后保留；中断 job 显式失败。
 
 ## 夹具再生的确定性
 
@@ -63,4 +67,4 @@ frontend contract + browser smoke test
 7. 检查 NOT_CHECKABLE 的原因明确说明数据缺失。
 8. 检查 ego graph 节点点击可以回到规则或构件。
 9. 在窄屏宽度检查面板改为单列且没有横向溢出。
-
+10. 通过 file chooser 导入许可明确的合成 IFC，确认 job 完成/去重、模型登记和 model-scoped run。

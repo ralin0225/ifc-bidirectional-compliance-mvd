@@ -68,6 +68,7 @@ python -m venv .venv
 5. 底部关系图显示 `Clause → Rule → Result → Element` 局部链。
 6. 选择另一个构件时，界面会显示该构件涉及的全部候选规则。
 7. 选择 `NOT_CHECKABLE` 可确认缺失数据没有被误报为 `FAIL`。
+8. 在“项目与模型”中可导入本地 IFC；job 完成后打开该模型，再从同一工作区创建检查运行。
 
 ## 命令行
 
@@ -91,6 +92,10 @@ python -m venv .venv
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/models` | 模型列表 |
+| POST | `/api/import-jobs?filename=...` | 受限 raw IFC 上传并创建持久化导入任务 |
+| GET | `/api/import-jobs/{job_id}` | 导入状态、进度、诊断和目标模型 |
+| POST | `/api/import-jobs/{job_id}/cancel` | 取消尚未开始的导入 |
+| GET | `/api/models/{model_id}/elements` | 分页/筛选语义元素索引 |
 | GET | `/api/projects` | 本地项目与模型/运行计数 |
 | GET | `/api/check-runs` | 分页检查历史 |
 | GET | `/api/check-runs/{run_id}` | 可审计运行与逐项结果 |
@@ -100,14 +105,14 @@ python -m venv .venv
 | POST | `/api/query/execute-dsl` | 执行已校验结构化查询 |
 | GET | `/api/queries` | 查询审计历史 |
 | GET | `/api/check-runs/{run_id}/export?format=json\|csv\|html\|bcf` | 审计输出与 BCF 3.0 |
-| GET | `/api/rules` | 规则与状态计数 |
+| GET | `/api/rules?model_id=...` | 指定模型的规则与状态计数 |
 | GET | `/api/rules/{rule_id}/elements` | rule → elements |
 | GET | `/api/elements/{guid}/rules` | element → rules |
 | GET | `/api/elements/{guid}/results` | 构件的检查结果 |
-| GET | `/api/scene` | GUID 对齐的三角网格 |
+| GET | `/api/scene?model_id=...` | 指定模型、GUID 对齐的三角网格 |
 | GET | `/api/graph/ego` | 局部 provenance graph |
 | GET | `/api/ids/report` | IDS 可检查性报告 |
-| POST | `/api/checks/run` | 重跑确定性检查 |
+| POST | `/api/checks/run?model_id=...` | 对指定模型重跑确定性检查 |
 
 交互式 OpenAPI 文档位于 <http://127.0.0.1:8000/docs>。
 
@@ -135,4 +140,6 @@ docs/               架构、规则编写、研究对应、限制和 ADR
 - [规则编写与复核](docs/rule-authoring.md)
 - [测试](docs/testing.md)
 - [研究方向对应](docs/research-alignment.md)
+- [模型与许可登记](docs/research/model-and-license-register.md)
+- [直接依赖许可登记](docs/research/dependency-license-register.md)
 - [已知限制](docs/limitations.md)

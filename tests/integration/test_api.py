@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from ifc_compliance_mvd import api as api_module
 from ifc_compliance_mvd.engine import MODEL_ID
+from ifc_compliance_mvd.imports import ModelImportService
 from ifc_compliance_mvd.storage import ComplianceStore
 
 client = TestClient(api_module.app)
@@ -19,7 +20,17 @@ def isolated_api_store(tmp_path, monkeypatch):
         model_path=api_module.engine.model_path,
         element_count=len(api_module.engine.elements),
     )
+    store.replace_model_elements(
+        MODEL_ID,
+        api_module.engine.serialised_elements(include_geometry=False),
+    )
     monkeypatch.setattr(api_module, "store", store)
+    monkeypatch.setattr(
+        api_module,
+        "import_service",
+        ModelImportService(store, tmp_path / "api-runtime" / "imports"),
+    )
+    monkeypatch.setattr(api_module, "engines", {MODEL_ID: api_module.engine})
 
 
 def test_health_and_models():
@@ -27,7 +38,7 @@ def test_health_and_models():
     assert health.status_code == 200
     assert health.json()["rule_count"] == 3
     assert health.json()["element_count"] == 10
-    assert health.json()["storage"]["schema_version"] == 2
+    assert health.json()["storage"]["schema_version"] == 4
     assert client.get("/api/models").json()[0]["schema"] == "IFC4"
     assert client.get("/api/projects").json()[0]["model_count"] == 1
 
@@ -78,6 +89,78 @@ def test_check_endpoint_is_deterministic_and_structured():
     assert comparison.json()["change_count"] == 0
 
 
+def test_ifc_import_indexes_model_and_runs_checks():
+    payload = api_module.engine.model_path.read_bytes().replace(
+        b"ISO-10303-21;",
+        b"ISO-10303-21;\n",
+        1,
+    )
+    response = client.post(
+        "/api/import-jobs",
+        params={
+            "filename": "uploaded-fixture.ifc",
+            "source": "integration test mutation",
+            "license": "MIT test fixture",
+        },
+        content=payload,
+        headers={"Content-Type": "application/x-step"},
+    )
+    assert response.status_code == 202
+    job = client.get(response.json()["poll_url"]).json()
+    assert job["status"] == "COMPLETED"
+    assert job["progress"] == 100
+    assert job["deduplicated"] is False
+
+    model_id = job["model_id"]
+    assert model_id.startswith("model-")
+    assert len(model_id) == len("model-") + 64
+    models = client.get("/api/models").json()
+    imported = next(model for model in models if model["model_id"] == model_id)
+    assert imported["schema"] == "IFC4"
+    assert imported["source_kind"] == "UPLOAD"
+    assert "stored_path" not in imported
+    assert imported["diagnostics"]["global_id_product_count"] >= 10
+
+    elements = client.get(
+        f"/api/models/{model_id}/elements",
+        params={"ifc_class": "IfcDoor", "search": "undersized"},
+    ).json()
+    assert elements["total"] == 1
+    assert elements["items"][0]["ifc_class"] == "IfcDoor"
+
+    run = client.post("/api/checks/run", params={"model_id": model_id})
+    assert run.status_code == 200
+    assert run.json()["model_id"] == model_id
+    assert run.json()["result_count"] == 15
+    assert {result["model_id"] for result in run.json()["results"]} == {model_id}
+    assert client.get("/api/scene", params={"model_id": model_id}).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("filename", "content_type", "payload", "expected_code"),
+    [
+        ("../escape.ifc", "application/x-step", b"ISO-10303-21;", "UNSAFE_FILENAME"),
+        ("model.zip", "application/x-step", b"ISO-10303-21;", "INVALID_EXTENSION"),
+        ("model.ifc", "application/zip", b"ISO-10303-21;", "UNSUPPORTED_MEDIA_TYPE"),
+        ("model.ifc", "application/x-step", b"not an IFC", "INVALID_IFC_SIGNATURE"),
+    ],
+)
+def test_ifc_import_rejects_untrusted_uploads(
+    filename,
+    content_type,
+    payload,
+    expected_code,
+):
+    response = client.post(
+        "/api/import-jobs",
+        params={"filename": filename},
+        content=payload,
+        headers={"Content-Type": content_type},
+    )
+    assert response.status_code in {415, 422}
+    assert response.json()["detail"]["code"] == expected_code
+
+
 def test_ego_graph_is_local_and_traceable():
     graph = client.get(
         "/api/graph/ego",
@@ -117,6 +200,7 @@ def test_natural_language_query_is_validated_executed_and_audited():
     history = client.get("/api/queries").json()
     assert history["total"] == 1
     assert history["items"][0]["query_id"] == payload["query_id"]
+    assert history["items"][0]["model_id"] == MODEL_ID
 
 
 def test_ambiguous_or_malicious_query_fails_closed():
@@ -155,6 +239,12 @@ def test_openapi_describes_validated_query_contracts():
     assert execute["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "QueryExecutionResponse"
     )
+    upload = schema["paths"]["/api/import-jobs"]["post"]
+    assert upload["requestBody"]["content"]["application/x-step"]["schema"] == {
+        "type": "string",
+        "format": "binary",
+    }
+    assert "/api/import-jobs/{job_id}/cancel" in schema["paths"]
 
 
 def test_run_exports_cover_json_csv_html_and_bcf():

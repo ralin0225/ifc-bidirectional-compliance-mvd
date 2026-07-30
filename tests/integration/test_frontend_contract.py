@@ -30,6 +30,9 @@ def test_frontend_exposes_coordinated_views():
         'id="toggleSection"',
         'id="toggleMeasure"',
         'id="saveView"',
+        'id="importForm"',
+        'id="ifcFile"',
+        'id="modelsBody"',
     ):
         assert required_id in html
 

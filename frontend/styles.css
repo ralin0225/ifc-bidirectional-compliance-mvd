@@ -166,6 +166,7 @@ h3 { margin-bottom: 4px; font-size: 15px; }
     "rules model evidence"
     "results results graph"
     "query query query"
+    "models models models"
     "runs runs runs";
   gap: 12px;
   max-width: 1800px;
@@ -186,6 +187,7 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 .results-panel { grid-area: results; min-height: 330px; }
 .graph-panel { grid-area: graph; min-height: 330px; }
 .query-panel { grid-area: query; min-height: 310px; }
+.models-panel { grid-area: models; min-height: 280px; }
 .runs-panel { grid-area: runs; min-height: 250px; }
 
 .panel-heading {
@@ -616,6 +618,97 @@ tbody tr:hover, tbody tr.selected { background: #edf5f5; }
 .query-result:hover { border-color: var(--ink); background: #f2f7f7; }
 .query-result strong { display: block; font-size: 12px; }
 .query-result span { color: var(--muted); font: 9px var(--mono); }
+.models-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, .62fr) minmax(560px, 1.6fr);
+  min-height: 220px;
+}
+.import-form {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  border-right: 1px solid var(--line);
+  padding: 18px;
+}
+.import-form label {
+  color: var(--muted);
+  font: 700 9px var(--mono);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.import-form input {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 8px;
+  color: var(--ink);
+  background: white;
+  font: 11px var(--body);
+}
+.import-form input[type="file"] { font: 9px var(--mono); }
+.file-choice {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px;
+  background: white;
+}
+.file-choice span {
+  overflow: hidden;
+  color: var(--muted);
+  font: 9px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-form .action-button { justify-self: start; margin: 3px 0 0; }
+.import-boundary {
+  margin: 3px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+.import-progress {
+  min-height: 20px;
+  color: var(--muted);
+  font: 10px var(--mono);
+  overflow-wrap: anywhere;
+}
+.import-progress.error { color: var(--fail); }
+.import-progress.success { color: var(--pass); }
+.model-register { overflow: auto; max-height: 315px; }
+.model-register table { min-width: 680px; }
+.model-register tbody tr { cursor: default; }
+.model-hash {
+  display: block;
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--muted);
+  font: 9px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-active {
+  display: inline-block;
+  margin-left: 5px;
+  border: 1px solid var(--focus);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--focus);
+  font: 8px var(--mono);
+}
+.model-open {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 4px 7px;
+  color: var(--ink);
+  background: transparent;
+  font: 9px var(--mono);
+  cursor: pointer;
+}
+.model-open:hover { border-color: var(--ink); background: #f2f7f7; }
+.models-empty { padding: 18px; }
 
 .status-PASS { --status-color: var(--pass); }
 .status-FAIL { --status-color: var(--fail); }
@@ -632,6 +725,7 @@ tbody tr:hover, tbody tr.selected { background: #edf5f5; }
       "results results"
       "graph graph"
       "query query"
+      "models models"
       "runs runs";
   }
   .rule-column, .evidence-column { min-height: 0; }
@@ -666,6 +760,8 @@ tbody tr:hover, tbody tr.selected { background: #edf5f5; }
   .run-table-wrap { max-height: none; }
   .query-layout { display: block; }
   .query-layout > * + * { border-top: 1px solid var(--line); border-left: 0; }
+  .models-layout { display: block; }
+  .import-form { border-right: 0; border-bottom: 1px solid var(--line); }
 }
 
 @media (prefers-reduced-motion: reduce) {

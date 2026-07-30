@@ -12,3 +12,4 @@ RUNTIME_DATA_PATH = Path(
     os.getenv("IFC_COMPLIANCE_DATA_DIR", ROOT / "data" / "runtime")
 )
 DATABASE_PATH = RUNTIME_DATA_PATH / "compliance.db"
+IMPORTS_PATH = RUNTIME_DATA_PATH / "imports"

@@ -74,8 +74,35 @@ def test_query_history_round_trips_validated_dsl(tmp_path, engine):
         dsl={"intent": "find_results", "filters": {"statuses": ["FAIL"]}},
         result_count=1,
         warnings=[],
+        model_id=MODEL_ID,
     )
     history = store.list_queries()
     assert history["total"] == 1
     assert history["items"][0]["query_id"] == query_id
     assert history["items"][0]["dsl"]["filters"]["statuses"] == ["FAIL"]
+    assert history["items"][0]["model_id"] == MODEL_ID
+
+
+def test_queued_import_can_cancel_and_interrupted_import_fails_on_restart(
+    tmp_path,
+    engine,
+):
+    store = seeded_store(tmp_path, engine)
+    cancelled_id = store.create_import_job(
+        original_filename="cancel.ifc",
+        file_size=100,
+        source_sha256="a" * 64,
+    )
+    assert store.cancel_import_job(cancelled_id)["status"] == "CANCELLED"
+    assert store.claim_import_job(cancelled_id) is False
+
+    interrupted_id = store.create_import_job(
+        original_filename="interrupted.ifc",
+        file_size=100,
+        source_sha256="b" * 64,
+    )
+    assert store.claim_import_job(interrupted_id) is True
+    reopened = ComplianceStore(store.database_path)
+    interrupted = reopened.get_import_job(interrupted_id)
+    assert interrupted["status"] == "FAILED"
+    assert interrupted["error"]["code"] == "PROCESS_RESTARTED"
