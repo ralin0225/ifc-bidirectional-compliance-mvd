@@ -25,7 +25,7 @@ passed
 ```
 
 GitHub Actions 质量矩阵 run
-[`30585095622`](https://github.com/ralin0225/ifc-bidirectional-compliance-mvd/actions/runs/30585095622)
+[`30588668119`](https://github.com/ralin0225/ifc-bidirectional-compliance-mvd/actions/runs/30588668119)
 在 Ubuntu CPython 3.11、3.12、3.13 和 Windows CPython 3.12 全部通过。每个作业从锁文件安装后执行
 `pip check`、公开仓库审计、前端语法检查、自动化测试、确定性夹具/IDS 重建 diff 和 CLI 检查。
 
