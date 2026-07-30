@@ -3,43 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IFC ↔ IBC 合规探索 MVD</title>
+  <title>IFC compliance audit workbench</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314262d'/%3E%3Cpath d='M7 9h18M7 16h12M7 23h18' stroke='%23dbe9ea' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">跳到工作区</a>
+  <a class="skip-link" href="#workspace" data-i18n="app.skip">跳到工作区</a>
   <header class="masthead">
-    <div>
-      <p class="eyebrow">2021 IBC · IFC4 · 可追溯演示</p>
-      <h1>条文与构件，双向查证。</h1>
+    <div class="brand-block">
+      <p class="eyebrow" data-i18n="app.eyebrow">2021 IBC · IFC4 · 确定性证据</p>
+      <h1 data-i18n="app.headline">从条文到构件，每一步都有证据。</h1>
+      <p class="disclaimer" data-i18n="app.disclaimer">研究与教学工具 · 不用于建筑审批、官方认证或法律意见</p>
     </div>
     <div class="run-meta">
       <span id="healthDot" class="health-dot" aria-hidden="true"></span>
-      <span id="healthText">正在载入检查器</span>
-      <button id="runChecks" class="action-button">重新检查</button>
+      <span id="healthText" data-i18n="app.loading">正在载入检查器</span>
+      <nav class="product-nav" aria-label="Product">
+        <a href="#workspace" data-i18n="nav.workspace">检查工作区</a>
+        <a href="#runs" data-i18n="nav.runs">运行历史</a>
+      </nav>
+      <label class="language-control">
+        <span class="sr-only" data-i18n="nav.language">界面语言</span>
+        <select id="localeSelect" aria-label="Interface language">
+          <option value="zh-CN">简体中文</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <button id="runChecks" class="action-button" data-i18n="action.run">重新检查</button>
     </div>
   </header>
 
   <nav class="trace-rail" aria-label="证据链">
-    <span>IBC 条文</span><i></i><span>结构化规则</span><i></i><span>IFC 信息</span><i></i>
-    <span>确定性检查</span><i></i><span>证据</span>
+    <span data-i18n="trace.clause">IBC 条文</span><i></i>
+    <span data-i18n="trace.rule">结构化规则</span><i></i>
+    <span data-i18n="trace.ifc">IFC 信息</span><i></i>
+    <span data-i18n="trace.check">确定性检查</span><i></i>
+    <span data-i18n="trace.evidence">证据</span>
   </nav>
 
   <main id="workspace" class="workspace">
     <aside class="rule-column panel">
       <header class="panel-heading">
         <div>
-          <p class="panel-kicker">Regulation → elements</p>
-          <h2>选择规则</h2>
+          <p class="panel-kicker" data-i18n="rules.kicker">规则 → 构件</p>
+          <h2 data-i18n="rules.heading">规则目录</h2>
         </div>
         <span id="ruleCount" class="count-chip">0</span>
       </header>
       <div id="ruleList" class="rule-list" role="list"></div>
       <section class="ids-card" aria-labelledby="idsTitle">
         <div>
-          <p class="panel-kicker">信息质量 ≠ 设计合规</p>
-          <h3 id="idsTitle">IDS 可检查性</h3>
+          <p class="panel-kicker" data-i18n="ids.kicker">信息质量 ≠ 设计合规</p>
+          <h3 id="idsTitle" data-i18n="ids.heading">IDS 可检查性</h3>
         </div>
         <div id="idsSummary">载入中…</div>
       </section>
@@ -48,50 +63,50 @@
     <section class="model-column panel">
       <header class="panel-heading model-heading">
         <div>
-          <p class="panel-kicker">IFC4 geometry · metres</p>
-          <h2 id="viewerTitle">构件状态视图</h2>
+          <p class="panel-kicker" data-i18n="viewer.kicker">IFC4 几何 · 米</p>
+          <h2 id="viewerTitle" data-i18n="viewer.heading">构件状态视图</h2>
         </div>
         <div class="viewer-actions">
-          <button id="resetView" class="text-button">重置视角</button>
+          <button id="resetView" class="text-button" data-i18n="viewer.reset">重置视角</button>
         </div>
       </header>
       <div class="viewer-shell">
-        <canvas id="viewer" aria-label="可旋转和点击选择的 IFC 三维构件视图"></canvas>
-        <div class="viewer-hint">拖动旋转 · 滚轮缩放 · 点击构件</div>
-        <div id="viewerEmpty" class="viewer-empty" hidden>当前状态筛选没有构件</div>
+        <canvas id="viewer" aria-label="可旋转和点击选择的 IFC 三维构件视图" data-i18n-aria="viewer.canvas"></canvas>
+        <div class="viewer-hint" data-i18n="viewer.hint">拖动旋转 · 滚轮缩放 · 点击构件</div>
+        <div id="viewerEmpty" class="viewer-empty" hidden data-i18n="viewer.empty">当前状态筛选没有构件</div>
       </div>
-      <div id="legend" class="legend" aria-label="检查状态图例"></div>
+      <div id="legend" class="legend" aria-label="检查状态图例" data-i18n-aria="viewer.legend"></div>
     </section>
 
     <aside class="evidence-column panel">
       <header class="panel-heading">
         <div>
-          <p class="panel-kicker">Element → regulations</p>
-          <h2>判定证据</h2>
+          <p class="panel-kicker" data-i18n="evidence.kicker">构件 → 规则</p>
+          <h2 data-i18n="evidence.heading">判定证据</h2>
         </div>
       </header>
       <div id="evidencePanel" class="evidence-panel">
-        <p class="empty-copy">选择一条规则，再点击三维构件或结果行。</p>
+        <p class="empty-copy" data-i18n="evidence.empty">在结果表或三维视图中选择一个构件。</p>
       </div>
     </aside>
 
     <section class="results-panel panel">
       <header class="panel-heading results-heading">
         <div>
-          <p class="panel-kicker">Grounded outcomes</p>
-          <h2>检查结果</h2>
+          <p class="panel-kicker" data-i18n="results.kicker">有依据的结论</p>
+          <h2 data-i18n="results.heading">检查结果</h2>
         </div>
-        <div id="statusFilters" class="status-filters" aria-label="按状态筛选"></div>
+        <div id="statusFilters" class="status-filters" aria-label="按状态筛选" data-i18n-aria="results.filters"></div>
       </header>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>状态</th>
-              <th>IFC 构件</th>
-              <th>实测</th>
-              <th>要求</th>
-              <th>证据来源</th>
+              <th data-i18n="results.status">状态</th>
+              <th data-i18n="results.element">IFC 构件</th>
+              <th data-i18n="results.measured">实测</th>
+              <th data-i18n="results.required">要求</th>
+              <th data-i18n="results.evidenceSource">证据来源</th>
             </tr>
           </thead>
           <tbody id="resultsBody"></tbody>
@@ -102,16 +117,42 @@
     <section class="graph-panel panel">
       <header class="panel-heading">
         <div>
-          <p class="panel-kicker">Local provenance graph</p>
-          <h2>局部关系图</h2>
+          <p class="panel-kicker" data-i18n="graph.kicker">局部来源图</p>
+          <h2 data-i18n="graph.heading">局部关系图</h2>
         </div>
-        <span class="quiet-note">只显示选中对象的 ego graph</span>
+        <span class="quiet-note" data-i18n="graph.note">只显示选中对象的局部关系</span>
       </header>
-      <svg id="graph" role="img" aria-label="规则、构件、结果和条文的局部关系图"></svg>
+      <svg id="graph" role="img" aria-label="规则、构件、结果和条文的局部关系图" data-i18n-aria="graph.aria"></svg>
+    </section>
+
+    <section id="runs" class="runs-panel panel">
+      <header class="panel-heading results-heading">
+        <div>
+          <p class="panel-kicker" data-i18n="runs.kicker">可审计执行</p>
+          <h2 data-i18n="runs.heading">运行历史</h2>
+          <p class="section-note" data-i18n="runs.note">每次运行有唯一运行号；相同输入保留同一确定性执行号。</p>
+        </div>
+        <button id="reloadRuns" class="text-button" data-i18n="runs.reload">刷新历史</button>
+      </header>
+      <div class="table-wrap run-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-i18n="runs.run">运行号</th>
+              <th data-i18n="runs.started">开始时间</th>
+              <th data-i18n="runs.duration">耗时</th>
+              <th data-i18n="runs.results">结果</th>
+              <th data-i18n="runs.summary">状态分布</th>
+            </tr>
+          </thead>
+          <tbody id="runsBody"></tbody>
+        </table>
+        <p id="runsEmpty" class="empty-copy runs-empty" data-i18n="runs.empty">尚无已保存运行。</p>
+      </div>
     </section>
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="/static/app.js?v=3"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # IFC ↔ IBC 双向合规探索 MVD
 
-这是一个面向教学与研究展示的 Minimum Viable Demonstrator。它把 2021 IBC 的三条人工复核规则、buildingSMART IDS 1.0 信息要求、IFC4 构件、确定性检查结果和计算证据连成一条可双向查询的链：
+这是一个正在向完整平台演进的教学与研究工具。它把 2021 IBC 的三条人工复核规则、buildingSMART IDS 1.0 信息要求、IFC4 构件、确定性检查结果和计算证据连成一条可双向查询的链：
 
 ```text
 IBC document → clause → structured rule → IFC requirement/geometry
@@ -23,6 +23,9 @@ IBC document → clause → structured rule → IFC requirement/geometry
 - IfcOpenShell 属性读取与世界坐标几何包围盒计算
 - `PASS`、`FAIL`、`NOT_APPLICABLE`、`NOT_CHECKABLE`
 - rule → elements 与 element → rules 双向 REST API
+- 自动迁移 SQLite，持久化项目、模型元数据、检查运行和逐项证据
+- 唯一运行号、确定性执行号、分页历史和两次运行比较 API
+- 简体中文 / English 全局切换与可分享的规则、构件、运行 URL
 - 无 CDN 的 WebGL 三维视图、状态筛选、构件拾取、证据面板和局部 provenance graph
 - 15 条人工 ground truth、边界值和端到端自动化测试
 
@@ -85,6 +88,10 @@ python -m venv .venv
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/models` | 模型列表 |
+| GET | `/api/projects` | 本地项目与模型/运行计数 |
+| GET | `/api/check-runs` | 分页检查历史 |
+| GET | `/api/check-runs/{run_id}` | 可审计运行与逐项结果 |
+| GET | `/api/check-runs/{base}/compare/{target}` | 两次运行的逐项差异 |
 | GET | `/api/rules` | 规则与状态计数 |
 | GET | `/api/rules/{rule_id}/elements` | rule → elements |
 | GET | `/api/elements/{guid}/rules` | element → rules |

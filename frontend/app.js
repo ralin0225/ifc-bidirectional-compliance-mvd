@@ -1,16 +1,20 @@
 const STATUS = {
-  PASS: { label: "PASS", color: [0.086, 0.502, 0.365, 1] },
-  FAIL: { label: "FAIL", color: [0.831, 0.302, 0.247, 1] },
-  NOT_APPLICABLE: { label: "NOT APPLICABLE", color: [0.443, 0.506, 0.541, 1] },
-  NOT_CHECKABLE: { label: "NOT CHECKABLE", color: [0.788, 0.510, 0.086, 1] },
-  MANUAL_REVIEW_REQUIRED: { label: "MANUAL REVIEW", color: [0.463, 0.337, 0.659, 1] },
+  PASS: { color: [0.086, 0.502, 0.365, 1] },
+  FAIL: { color: [0.831, 0.302, 0.247, 1] },
+  NOT_APPLICABLE: { color: [0.443, 0.506, 0.541, 1] },
+  NOT_CHECKABLE: { color: [0.788, 0.510, 0.086, 1] },
+  MANUAL_REVIEW_REQUIRED: { color: [0.463, 0.337, 0.659, 1] },
 };
 
 const state = {
+  locale: "zh-CN",
+  messages: {},
   rules: [],
   results: [],
   elements: [],
+  runs: [],
   ids: null,
+  health: null,
   selectedRuleId: null,
   selectedElementGuid: null,
   activeStatuses: new Set(Object.keys(STATUS)),
@@ -32,6 +36,10 @@ const dom = {
   toast: document.querySelector("#toast"),
   runChecks: document.querySelector("#runChecks"),
   resetView: document.querySelector("#resetView"),
+  localeSelect: document.querySelector("#localeSelect"),
+  reloadRuns: document.querySelector("#reloadRuns"),
+  runsBody: document.querySelector("#runsBody"),
+  runsEmpty: document.querySelector("#runsEmpty"),
 };
 
 const escapeHtml = (value) => String(value ?? "")
@@ -39,6 +47,78 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll("<", "&lt;")
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;");
+
+function t(key, variables = {}) {
+  const template = state.messages[state.locale]?.[key]
+    ?? state.messages.en?.[key]
+    ?? key;
+  return Object.entries(variables).reduce(
+    (value, [name, replacement]) => value.replaceAll(`{${name}}`, String(replacement)),
+    template,
+  );
+}
+
+function statusLabel(status) {
+  return t(`status.${status}`);
+}
+
+function preferredLocale() {
+  const parameter = new URLSearchParams(window.location.search).get("lang");
+  if (["zh-CN", "en"].includes(parameter)) return parameter;
+  const saved = localStorage.getItem("ifc-compliance-locale");
+  if (["zh-CN", "en"].includes(saved)) return saved;
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+}
+
+function applyStaticTranslations() {
+  document.documentElement.lang = state.locale;
+  document.title = t("app.metaTitle");
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAria));
+  });
+  dom.localeSelect.value = state.locale;
+}
+
+function syncUrl(updates = {}) {
+  const url = new URL(window.location.href);
+  const values = {
+    lang: state.locale,
+    rule: state.selectedRuleId,
+    element: state.selectedElementGuid,
+    ...updates,
+  };
+  Object.entries(values).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  });
+  window.history.replaceState({}, "", url);
+}
+
+function renderLocalizedUi() {
+  applyStaticTranslations();
+  if (!state.health) return;
+  dom.healthText.textContent = t("health.summary", {
+    rules: state.health.rule_count,
+    elements: state.health.element_count,
+    schema: state.health.storage.schema_version,
+  });
+  renderRules();
+  renderIds();
+  renderStatusControls();
+  renderResults();
+  renderEvidence();
+  renderRuns();
+  const rule = currentRule();
+  if (rule) dom.viewerTitle.textContent = `§${rule.source.section} · ${rule.target.ifc_class}`;
+  dom.legend.innerHTML = Object.keys(STATUS).map((status) => `
+    <span class="legend-item status-${status}">
+      <i class="swatch"></i>${escapeHtml(statusLabel(status))}
+    </span>
+  `).join("");
+}
 
 async function api(path, options) {
   const response = await fetch(path, options);
@@ -72,13 +152,13 @@ function renderRules() {
   dom.ruleCount.textContent = String(state.rules.length);
   dom.ruleList.innerHTML = state.rules.map((rule) => {
     const counts = Object.entries(rule.status_counts || {})
-      .map(([status, count]) => `<span class="mini-status">${escapeHtml(status)} ${count}</span>`)
+      .map(([status, count]) => `<span class="mini-status">${escapeHtml(statusLabel(status))} ${count}</span>`)
       .join("");
     return `
       <button class="rule-card ${rule.rule_id === state.selectedRuleId ? "selected" : ""}"
         data-rule-id="${escapeHtml(rule.rule_id)}" role="listitem">
         <span class="rule-code">IBC §${escapeHtml(rule.source.section)} · ${escapeHtml(rule.execution_method)}</span>
-        <span class="rule-title">${escapeHtml(rule.title)}</span>
+        <span class="rule-title">${escapeHtml(t(`rules.${rule.rule_id}.title`))}</span>
         <span class="rule-threshold">${escapeHtml(rule.requirement.metric)} ≥ ${rule.requirement.value} ${rule.requirement.unit}</span>
         <span class="rule-statuses">${counts}</span>
       </button>`;
@@ -92,10 +172,10 @@ function renderIds() {
   if (!state.ids) return;
   dom.idsSummary.innerHTML = state.ids.specifications.map((spec) => `
     <div class="ids-line">
-      <span>${escapeHtml(spec.name)}</span>
+      <span>${escapeHtml(t(`ids.${spec.identifier}`))}</span>
       <strong>${spec.passed_count}/${spec.applicable_count}</strong>
     </div>
-  `).join("") + `<p style="margin:10px 0 0;color:var(--muted)">${escapeHtml(state.ids.purpose)}</p>`;
+  `).join("") + `<p class="ids-purpose">${escapeHtml(t("ids.purpose"))}</p>`;
 }
 
 function renderStatusControls() {
@@ -106,7 +186,7 @@ function renderStatusControls() {
   dom.statusFilters.innerHTML = Object.entries(STATUS).map(([status, meta]) => `
     <button class="filter-button ${state.activeStatuses.has(status) ? "active" : ""}"
       data-status="${status}">
-      ${meta.label} ${counts[status] || 0}
+      ${escapeHtml(statusLabel(status))} ${counts[status] || 0}
     </button>
   `).join("");
   dom.statusFilters.querySelectorAll("[data-status]").forEach((button) => {
@@ -130,7 +210,7 @@ function renderResults() {
   dom.resultsBody.innerHTML = results.map((result) => `
     <tr data-guid="${escapeHtml(result.element_guid)}"
       class="${result.element_guid === state.selectedElementGuid ? "selected" : ""}">
-      <td><span class="status-pill status-${result.status}">${escapeHtml(result.status)}</span></td>
+      <td><span class="status-pill status-${result.status}">${escapeHtml(statusLabel(result.status))}</span></td>
       <td><strong>${escapeHtml(result.element_name)}</strong><br><span class="guid">${escapeHtml(result.element_guid)}</span></td>
       <td class="metric">${metricText(result.measured_value, result.unit)}</td>
       <td class="metric">${escapeHtml(result.operator)} ${metricText(result.required_value, result.unit)}</td>
@@ -162,8 +242,8 @@ function renderEvidence() {
   const result = guid ? resultFor(rule?.rule_id, guid) : null;
   if (!rule || !result) {
     dom.evidencePanel.innerHTML = `
-      <p class="empty-copy">在结果表或三维视图中选择一个与当前规则相关的构件。</p>
-      ${rule ? `<div class="evidence-section"><h3>当前条文</h3><p class="clause-excerpt">“${escapeHtml(rule.source.excerpt)}”</p></div>` : ""}`;
+      <p class="empty-copy">${escapeHtml(t("evidence.empty"))}</p>
+      ${rule ? `<div class="evidence-section"><h3>${escapeHtml(t("evidence.currentClause"))}</h3><p class="clause-excerpt" lang="en">“${escapeHtml(rule.source.excerpt)}”</p></div>` : ""}`;
     return;
   }
   const relevantRules = state.results
@@ -171,34 +251,34 @@ function renderEvidence() {
     .map((item) => `${item.clause} · ${item.status}`);
   dom.evidencePanel.innerHTML = `
     <div class="status-banner status-${result.status}">
-      <strong>${escapeHtml(result.status)}</strong>
+      <strong>${escapeHtml(statusLabel(result.status))}</strong>
       <span>${escapeHtml(result.evidence_source)}</span>
     </div>
     <h3 class="evidence-title">${escapeHtml(result.element_name)}</h3>
     <div class="guid">${escapeHtml(result.ifc_class)} · ${escapeHtml(result.element_guid)}</div>
     <div class="measure-box">
-      <div class="measure-cell"><small>实测</small><strong>${metricText(result.measured_value, result.unit)}</strong></div>
+      <div class="measure-cell"><small>${escapeHtml(t("evidence.measured"))}</small><strong>${metricText(result.measured_value, result.unit)}</strong></div>
       <span class="operator">${escapeHtml(result.operator)}</span>
-      <div class="measure-cell"><small>阈值</small><strong>${metricText(result.required_value, result.unit)}</strong></div>
+      <div class="measure-cell"><small>${escapeHtml(t("evidence.threshold"))}</small><strong>${metricText(result.required_value, result.unit)}</strong></div>
     </div>
     <div class="evidence-section">
-      <h3>为什么得到这个结果</h3>
-      <p>${escapeHtml(result.reason)}</p>
+      <h3>${escapeHtml(t("evidence.why"))}</h3>
+      <p>${escapeHtml(t(`evidence.reason.${result.status}`))}</p>
     </div>
     <div class="evidence-section">
-      <h3>IBC ${escapeHtml(rule.source.section)} · PDF 第 ${rule.source.pdf_page} 页</h3>
-      <p class="clause-excerpt">“${escapeHtml(rule.source.excerpt)}”</p>
+      <h3>${escapeHtml(t("evidence.sourceText"))} · IBC ${escapeHtml(rule.source.section)} · PDF ${rule.source.pdf_page}</h3>
+      <p class="clause-excerpt" lang="en">“${escapeHtml(rule.source.excerpt)}”</p>
     </div>
     <div class="evidence-section">
-      <h3>计算解释</h3>
-      <p>${escapeHtml(rule.mapping.interpretation)}</p>
+      <h3>${escapeHtml(t("evidence.interpretation"))}</h3>
+      <p>${escapeHtml(t(`rules.${rule.rule_id}.interpretation`))}</p>
     </div>
     <div class="evidence-section">
-      <h3>同一构件涉及的规则</h3>
+      <h3>${escapeHtml(t("evidence.related"))}</h3>
       <ul class="detail-list">${relevantRules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
     </div>
     <div class="evidence-section">
-      <h3>计算 provenance</h3>
+      <h3>${escapeHtml(t("evidence.provenance"))}</h3>
       <ul class="detail-list">${detailRows(result.evidence_details)}</ul>
     </div>`;
 }
@@ -290,6 +370,7 @@ function selectRule(ruleId) {
   if (ruleChanged || !state.selectedElementGuid) viewer.focusCurrentRule();
   viewer.render();
   renderGraph().catch(console.error);
+  syncUrl();
 }
 
 function selectElement(guid) {
@@ -304,6 +385,43 @@ function selectElement(guid) {
   renderEvidence();
   viewer.render();
   renderGraph().catch(console.error);
+  syncUrl();
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat(state.locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function renderRuns() {
+  dom.runsEmpty.hidden = state.runs.length > 0;
+  dom.runsBody.innerHTML = state.runs.map((run) => {
+    const counts = Object.entries(run.status_counts || {})
+      .map(([status, count]) => `<span class="mini-status status-${status}">${escapeHtml(statusLabel(status))} ${count}</span>`)
+      .join("");
+    const runUrl = new URL(window.location.href);
+    runUrl.searchParams.set("run", run.run_id);
+    runUrl.hash = "runs";
+    return `
+      <tr data-run-id="${escapeHtml(run.run_id)}">
+        <td>
+          <a class="run-link" href="${escapeHtml(runUrl.pathname + runUrl.search + runUrl.hash)}">${escapeHtml(run.run_id.slice(0, 16))}…</a>
+          <span class="guid">${escapeHtml(run.execution_id)}</span>
+        </td>
+        <td>${escapeHtml(formatDate(run.started_at))}</td>
+        <td class="metric">${run.duration_ms === null ? "—" : `${Number(run.duration_ms).toFixed(1)} ms`}</td>
+        <td class="metric">${run.result_count}</td>
+        <td><span class="run-statuses">${counts}</span></td>
+      </tr>`;
+  }).join("");
+}
+
+async function loadRuns() {
+  const response = await api("/api/check-runs?limit=50");
+  state.runs = response.items;
+  renderRuns();
 }
 
 class IFCWebGLViewer {
@@ -557,9 +675,19 @@ function multiply(a, b) {
 
 const viewer = new IFCWebGLViewer(document.querySelector("#viewer"));
 dom.resetView.addEventListener("click", () => viewer.reset());
+dom.reloadRuns.addEventListener("click", () => loadRuns().catch((error) => {
+  showToast(t("toast.failed", { error: error.message }));
+}));
+dom.localeSelect.addEventListener("change", () => {
+  state.locale = dom.localeSelect.value;
+  localStorage.setItem("ifc-compliance-locale", state.locale);
+  syncUrl();
+  renderLocalizedUi();
+  renderGraph().catch(console.error);
+});
 dom.runChecks.addEventListener("click", async () => {
   dom.runChecks.disabled = true;
-  dom.runChecks.textContent = "检查中…";
+  dom.runChecks.textContent = t("action.running");
   try {
     const response = await api("/api/checks/run", { method: "POST" });
     state.results = response.results;
@@ -567,40 +695,56 @@ dom.runChecks.addEventListener("click", async () => {
     renderResults();
     renderEvidence();
     viewer.render();
-    showToast(`检查完成：${response.result_count} 条结果，执行号 ${response.execution_id}`);
+    await loadRuns();
+    syncUrl({ run: response.run_id });
+    showToast(t("toast.completed", {
+      count: response.result_count,
+      runId: response.run_id.slice(0, 16),
+    }));
   } catch (error) {
-    showToast(`检查未完成：${error.message}`);
+    showToast(t("toast.failed", { error: error.message }));
   } finally {
     dom.runChecks.disabled = false;
-    dom.runChecks.textContent = "重新检查";
+    dom.runChecks.textContent = t("action.run");
   }
 });
 
 async function init() {
   try {
-    const [health, rules, results, scene, ids] = await Promise.all([
+    state.messages = await api("/static/i18n.json");
+    state.locale = preferredLocale();
+    applyStaticTranslations();
+    const [health, rules, results, scene, ids, runs] = await Promise.all([
       api("/api/health"),
       api("/api/rules"),
       api("/api/results"),
       api("/api/scene"),
       api("/api/ids/report"),
+      api("/api/check-runs?limit=50"),
     ]);
+    state.health = health;
     state.rules = rules;
     state.results = results;
     state.elements = scene.elements;
     state.ids = ids;
-    state.selectedRuleId = rules[0]?.rule_id || null;
+    state.runs = runs.items;
+    const parameters = new URLSearchParams(window.location.search);
+    const requestedRule = parameters.get("rule");
+    const requestedElement = parameters.get("element");
+    state.selectedRuleId = rules.some((rule) => rule.rule_id === requestedRule)
+      ? requestedRule
+      : rules[0]?.rule_id || null;
+    state.selectedElementGuid = scene.elements.some((element) => element.global_id === requestedElement)
+      ? requestedElement
+      : null;
     dom.healthDot.classList.add("ready");
-    dom.healthText.textContent = `${health.rule_count} 条规则 · ${health.element_count} 个构件`;
-    dom.legend.innerHTML = Object.entries(STATUS).map(([status, meta]) => `
-      <span class="legend-item status-${status}"><i class="swatch"></i>${meta.label}</span>
-    `).join("");
-    renderIds();
     viewer.load(scene.elements);
     selectRule(state.selectedRuleId);
+    renderLocalizedUi();
+    syncUrl();
   } catch (error) {
-    dom.healthText.textContent = "载入失败";
-    dom.evidencePanel.innerHTML = `<p class="empty-copy">应用无法载入：${escapeHtml(error.message)}</p>`;
+    dom.healthText.textContent = t("app.loadFailed");
+    dom.evidencePanel.innerHTML = `<p class="empty-copy">${escapeHtml(t("toast.failed", { error: error.message }))}</p>`;
     console.error(error);
   }
 }

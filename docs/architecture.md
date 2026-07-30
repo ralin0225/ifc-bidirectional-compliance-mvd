@@ -20,6 +20,8 @@ flowchart LR
     IDS -->|"缺失 → NOT_CHECKABLE"| Engine
     Engine --> Results["结果 + Evidence"]
     Results --> API["FastAPI 双向查询"]
+    Results --> SQLite["SQLite 项目 / 模型 / 运行 / 结果审计库"]
+    SQLite --> API
     Rules --> API
     IFC --> API
     API --> UI["WebGL + 表格 + 条文 + ego graph"]
@@ -35,6 +37,7 @@ flowchart LR
 | IfcTester | 对 `.ids` 执行 buildingSMART IDS 1.0 验证 | 不判断 IBC 阈值 |
 | `graph.py` | 构造局部关系投影 | 不存完整 B-rep |
 | `api.py` | 双向 API 和静态界面托管 | 不包含规则算法 |
+| `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
 | `frontend/` | 协调选择、筛选、三维拾取和解释 | 不在浏览器重新判定合规 |
 
 ## 数据主键
@@ -42,6 +45,12 @@ flowchart LR
 IFC `GlobalId` 是跨检查器、API、表格、三维网格和关系图的主要标识。规则使用稳定 `rule_id`。结果主键在 MVD 中等价于 `(execution_id, rule_id, element_guid)`。
 
 `execution_id` 由 IFC 文件字节、规范化规则库和检查器版本的 SHA-256 摘要产生。相同输入得到相同执行号，便于比较重复运行。
+
+每次实际执行另有唯一 `run_id`。相同输入的两次检查共享确定性 `execution_id`，但各自保留开始时间、耗时、状态计数和逐项证据。默认数据库位于被 Git 忽略的 `data/runtime/`，启动时自动执行 `schema_migrations`。
+
+## 本地化
+
+静态和动态 UI 文案使用 `frontend/i18n.json` 的 `zh-CN` / `en` 对等键集合。语言优先级为 URL `lang` 参数、浏览器本地保存值、浏览器首选语言；选择会写回 URL 和本地保存值。IFC `Name`、property key、IFC class 和带 `lang="en"` 的法规源文本保持源语言，不做伪翻译。
 
 ## 状态机
 
@@ -81,4 +90,3 @@ ComplianceResult EVIDENCED_BY IfcElement
 ```
 
 接口形状保留 `nodes` / `edges`，后续可将相同投影写入 Neo4j；真实三角网格仍留在 IFC/IfcOpenShell 层。
-
