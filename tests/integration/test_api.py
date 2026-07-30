@@ -49,6 +49,11 @@ def test_scene_is_guid_addressable_and_contains_real_geometry():
     geometries = [element["geometry"] for element in scene["elements"]]
     assert all(geometry["positions"] and geometry["indices"] for geometry in geometries)
     assert sum(geometry["placeholder"] for geometry in geometries) == 1
+    assert all(element["spatial_path"] for element in scene["elements"])
+    assert {
+        node["ifc_class"]
+        for node in scene["elements"][0]["spatial_path"]
+    } >= {"IfcProject", "IfcSite", "IfcBuilding", "IfcBuildingStorey"}
 
 
 def test_check_endpoint_is_deterministic_and_structured():

@@ -6,7 +6,7 @@ from typing import Any
 
 import ifcopenshell
 import ifcopenshell.geom
-from ifcopenshell.util.element import get_psets
+from ifcopenshell.util.element import get_aggregate, get_container, get_psets
 from ifcopenshell.util.placement import get_local_placement
 
 
@@ -118,6 +118,20 @@ def scene_geometry(element) -> dict:
 
 
 def serialise_element(element, include_geometry: bool = False) -> dict:
+    spatial_path = []
+    ancestor = get_container(element) or get_aggregate(element)
+    visited = set()
+    while ancestor is not None and ancestor.id() not in visited:
+        visited.add(ancestor.id())
+        spatial_path.append(
+            {
+                "global_id": getattr(ancestor, "GlobalId", None),
+                "ifc_class": ancestor.is_a(),
+                "name": getattr(ancestor, "Name", None) or ancestor.is_a(),
+            }
+        )
+        ancestor = get_container(ancestor) or get_aggregate(ancestor)
+    spatial_path.reverse()
     payload = {
         "global_id": element.GlobalId,
         "ifc_class": element.is_a(),
@@ -126,6 +140,7 @@ def serialise_element(element, include_geometry: bool = False) -> dict:
             name: {key: value for key, value in values.items() if key != "id"}
             for name, values in element_psets(element).items()
         },
+        "spatial_path": spatial_path,
     }
     if include_geometry:
         payload["geometry"] = scene_geometry(element)

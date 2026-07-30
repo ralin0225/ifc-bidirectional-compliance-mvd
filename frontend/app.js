@@ -47,6 +47,24 @@ const dom = {
   queryDsl: document.querySelector("#queryDsl"),
   queryFeedback: document.querySelector("#queryFeedback"),
   queryResults: document.querySelector("#queryResults"),
+  fitSelection: document.querySelector("#fitSelection"),
+  hideSelection: document.querySelector("#hideSelection"),
+  isolateSelection: document.querySelector("#isolateSelection"),
+  showAll: document.querySelector("#showAll"),
+  ghostContext: document.querySelector("#ghostContext"),
+  toggleProjection: document.querySelector("#toggleProjection"),
+  frontView: document.querySelector("#frontView"),
+  topView: document.querySelector("#topView"),
+  rightView: document.querySelector("#rightView"),
+  toggleSection: document.querySelector("#toggleSection"),
+  sectionControl: document.querySelector("#sectionControl"),
+  sectionLevel: document.querySelector("#sectionLevel"),
+  toggleMeasure: document.querySelector("#toggleMeasure"),
+  measurementHud: document.querySelector("#measurementHud"),
+  saveView: document.querySelector("#saveView"),
+  restoreView: document.querySelector("#restoreView"),
+  modelSearch: document.querySelector("#modelSearch"),
+  modelTree: document.querySelector("#modelTree"),
 };
 
 const escapeHtml = (value) => String(value ?? "")
@@ -122,6 +140,8 @@ function renderLocalizedUi() {
   renderEvidence();
   renderRuns();
   renderQuery();
+  renderModelTree();
+  viewer.updateControls();
   const rule = currentRule();
   if (rule) dom.viewerTitle.textContent = `§${rule.source.section} · ${rule.target.ifc_class}`;
   dom.legend.innerHTML = Object.keys(STATUS).map((status) => `
@@ -207,6 +227,7 @@ function renderStatusControls() {
       else state.activeStatuses.add(status);
       renderStatusControls();
       renderResults();
+      renderModelTree();
       viewer.render();
     });
   });
@@ -378,6 +399,7 @@ function selectRule(ruleId) {
   renderStatusControls();
   renderResults();
   renderEvidence();
+  renderModelTree();
   if (ruleChanged || !state.selectedElementGuid) viewer.focusCurrentRule();
   viewer.render();
   renderGraph().catch(console.error);
@@ -394,6 +416,7 @@ function selectElement(guid) {
   renderStatusControls();
   renderResults();
   renderEvidence();
+  renderModelTree();
   viewer.render();
   renderGraph().catch(console.error);
   syncUrl();
@@ -487,6 +510,89 @@ function renderQuery() {
   });
 }
 
+function renderModelTree() {
+  const query = dom.modelSearch.value.trim().toLocaleLowerCase(state.locale);
+  const elements = state.elements.filter((element) => {
+    if (!query) return true;
+    const searchable = [
+      element.global_id,
+      element.name,
+      element.ifc_class,
+      JSON.stringify(element.properties || {}),
+      ...(element.spatial_path || []).flatMap((node) => [node.name, node.ifc_class, node.global_id]),
+    ].join(" ").toLocaleLowerCase(state.locale);
+    return searchable.includes(query);
+  });
+
+  const root = { children: new Map(), elements: [] };
+  elements.forEach((element) => {
+    let cursor = root;
+    (element.spatial_path || []).forEach((spatial) => {
+      const key = `${spatial.ifc_class}:${spatial.global_id}`;
+      if (!cursor.children.has(key)) {
+        cursor.children.set(key, { spatial, children: new Map(), elements: [] });
+      }
+      cursor = cursor.children.get(key);
+    });
+    cursor.elements.push(element);
+  });
+
+  const renderElements = (items) => {
+    const byClass = new Map();
+    items.forEach((element) => {
+      if (!byClass.has(element.ifc_class)) byClass.set(element.ifc_class, []);
+      byClass.get(element.ifc_class).push(element);
+    });
+    return [...byClass.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([ifcClass, members]) => `
+      <details class="tree-class" open>
+        <summary>${escapeHtml(ifcClass)} <span>${members.length}</span></summary>
+        <div class="tree-elements">
+          ${members.map((element) => {
+            const status = resultFor(state.selectedRuleId, element.global_id)?.status;
+            const classes = [
+              "tree-element",
+              status ? `status-${status}` : "",
+              element.global_id === state.selectedElementGuid ? "selected" : "",
+              viewer.hiddenGuids.has(element.global_id) ? "hidden-element" : "",
+              viewer.isolatedGuid === element.global_id ? "isolated-element" : "",
+            ].filter(Boolean).join(" ");
+            return `
+              <button type="button" class="${classes}" data-tree-guid="${escapeHtml(element.global_id)}">
+                <i aria-hidden="true"></i>
+                <span><strong>${escapeHtml(element.name || element.ifc_class)}</strong>
+                <small>${escapeHtml(element.global_id)}</small></span>
+              </button>`;
+          }).join("")}
+        </div>
+      </details>
+    `).join("");
+  };
+
+  const renderSpatial = (node) => [...node.children.values()].map((child) => `
+    <details class="tree-spatial" open>
+      <summary>
+        <span>${escapeHtml(child.spatial.name || child.spatial.ifc_class)}</span>
+        <small>${escapeHtml(child.spatial.ifc_class)}</small>
+      </summary>
+      <div class="tree-branch">
+        ${renderSpatial(child)}
+        ${renderElements(child.elements)}
+      </div>
+    </details>
+  `).join("");
+
+  dom.modelTree.innerHTML = elements.length
+    ? renderSpatial(root) + renderElements(root.elements)
+    : `<p class="tree-empty">${escapeHtml(t("query.noRows"))}</p>`;
+  dom.modelTree.querySelectorAll("[data-tree-guid]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const mesh = viewer.meshes.find((item) => item.element.global_id === button.dataset.treeGuid);
+      if (mesh) viewer.measure(mesh);
+      selectElement(button.dataset.treeGuid);
+    });
+  });
+}
+
 class IFCWebGLViewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -498,10 +604,20 @@ class IFCWebGLViewer {
     this.distance = 19;
     this.target = [6.7, 1.6, 1.0];
     this.drag = null;
+    this.hiddenGuids = new Set();
+    this.isolatedGuid = null;
+    this.ghostContext = false;
+    this.projection = "perspective";
+    this.sectionEnabled = false;
+    this.sectionZ = 4;
+    this.measureEnabled = false;
+    this.measurePoints = [];
     this.program = this.createProgram();
     this.positionLocation = this.gl.getAttribLocation(this.program, "aPosition");
     this.mvpLocation = this.gl.getUniformLocation(this.program, "uMVP");
     this.colorLocation = this.gl.getUniformLocation(this.program, "uColor");
+    this.clipEnabledLocation = this.gl.getUniformLocation(this.program, "uClipEnabled");
+    this.clipZLocation = this.gl.getUniformLocation(this.program, "uClipZ");
     this.initEvents();
     new ResizeObserver(() => this.render()).observe(canvas);
   }
@@ -518,12 +634,22 @@ class IFCWebGLViewer {
     const vertex = compile(gl.VERTEX_SHADER, `
       attribute vec3 aPosition;
       uniform mat4 uMVP;
-      void main() { gl_Position = uMVP * vec4(aPosition, 1.0); }
+      varying float vWorldZ;
+      void main() {
+        vWorldZ = aPosition.z;
+        gl_Position = uMVP * vec4(aPosition, 1.0);
+      }
     `);
     const fragment = compile(gl.FRAGMENT_SHADER, `
       precision mediump float;
       uniform vec4 uColor;
-      void main() { gl_FragColor = uColor; }
+      uniform bool uClipEnabled;
+      uniform float uClipZ;
+      varying float vWorldZ;
+      void main() {
+        if (uClipEnabled && vWorldZ > uClipZ) discard;
+        gl_FragColor = uColor;
+      }
     `);
     const program = gl.createProgram();
     gl.attachShader(program, vertex);
@@ -535,7 +661,11 @@ class IFCWebGLViewer {
 
   load(elements) {
     const gl = this.gl;
+    let minimumZ = Infinity;
+    let maximumZ = -Infinity;
     this.meshes = elements.map((element, index) => {
+      minimumZ = Math.min(minimumZ, element.geometry.bbox.min[2]);
+      maximumZ = Math.max(maximumZ, element.geometry.bbox.max[2]);
       const positions = new Float32Array(element.geometry.positions);
       const indices = new Uint16Array(element.geometry.indices);
       const edges = [];
@@ -558,6 +688,14 @@ class IFCWebGLViewer {
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(edges), gl.STATIC_DRAW);
       return { element, index: index + 1, vertexBuffer, indexBuffer, edgeBuffer, count: indices.length, edgeCount: edges.length };
     });
+    if (Number.isFinite(minimumZ) && Number.isFinite(maximumZ)) {
+      dom.sectionLevel.min = String(minimumZ);
+      dom.sectionLevel.max = String(maximumZ);
+      dom.sectionLevel.step = String(Math.max(.01, (maximumZ - minimumZ) / 100));
+      dom.sectionLevel.value = String(maximumZ);
+      this.sectionZ = maximumZ;
+    }
+    this.updateControls();
     this.render();
   }
 
@@ -578,7 +716,18 @@ class IFCWebGLViewer {
       this.target[1] + Math.cos(this.pitch) * Math.sin(this.yaw) * this.distance,
       this.target[2] + Math.sin(this.pitch) * this.distance,
     ];
-    return multiply(perspective(Math.PI / 4, this.canvas.width / this.canvas.height, .05, 100), lookAt(eye, this.target, [0, 0, 1]));
+    const aspect = this.canvas.width / this.canvas.height;
+    const projection = this.projection === "orthographic"
+      ? orthographic(
+        -this.distance * .45 * aspect,
+        this.distance * .45 * aspect,
+        -this.distance * .45,
+        this.distance * .45,
+        .05,
+        100,
+      )
+      : perspective(Math.PI / 4, aspect, .05, 100);
+    return multiply(projection, lookAt(eye, this.target, [0, 0, 1]));
   }
 
   meshStatus(mesh) {
@@ -587,15 +736,29 @@ class IFCWebGLViewer {
 
   visible(mesh) {
     const status = this.meshStatus(mesh);
-    return Boolean(status) && state.activeStatuses.has(status);
+    if (!status || !state.activeStatuses.has(status)) return false;
+    if (this.hiddenGuids.has(mesh.element.global_id)) return false;
+    if (this.isolatedGuid && mesh.element.global_id !== this.isolatedGuid) return this.ghostContext;
+    return true;
   }
 
-  focusCurrentRule() {
-    const visibleMeshes = this.meshes.filter((mesh) => this.meshStatus(mesh));
-    if (!visibleMeshes.length) return;
+  isGhost(mesh) {
+    return Boolean(
+      this.isolatedGuid
+      && mesh.element.global_id !== this.isolatedGuid
+      && this.ghostContext,
+    );
+  }
+
+  selection() {
+    return this.meshes.find((mesh) => mesh.element.global_id === state.selectedElementGuid) || null;
+  }
+
+  focusMeshes(meshes) {
+    if (!meshes.length) return;
     const minimum = [Infinity, Infinity, Infinity];
     const maximum = [-Infinity, -Infinity, -Infinity];
-    visibleMeshes.forEach((mesh) => {
+    meshes.forEach((mesh) => {
       const bbox = mesh.element.geometry.bbox;
       for (let axis = 0; axis < 3; axis += 1) {
         minimum[axis] = Math.min(minimum[axis], bbox.min[axis]);
@@ -604,7 +767,159 @@ class IFCWebGLViewer {
     });
     this.target = minimum.map((value, axis) => (value + maximum[axis]) / 2);
     const extent = Math.max(...maximum.map((value, axis) => value - minimum[axis]));
-    this.distance = Math.max(6, extent * 1.55);
+    this.distance = Math.max(3, extent * 1.8);
+  }
+
+  focusCurrentRule() {
+    const visibleMeshes = this.meshes.filter((mesh) => this.meshStatus(mesh));
+    this.focusMeshes(visibleMeshes);
+  }
+
+  fitSelection() {
+    const selected = this.selection();
+    if (!selected) return false;
+    this.focusMeshes([selected]);
+    this.render();
+    return true;
+  }
+
+  hideSelection() {
+    const selected = this.selection();
+    if (!selected) return false;
+    this.hiddenGuids.add(selected.element.global_id);
+    if (this.isolatedGuid === selected.element.global_id) this.isolatedGuid = null;
+    this.updateControls();
+    renderModelTree();
+    this.render();
+    return true;
+  }
+
+  isolateSelection() {
+    const selected = this.selection();
+    if (!selected) return false;
+    this.hiddenGuids.delete(selected.element.global_id);
+    this.isolatedGuid = selected.element.global_id;
+    this.focusMeshes([selected]);
+    this.updateControls();
+    renderModelTree();
+    this.render();
+    return true;
+  }
+
+  showAll() {
+    this.hiddenGuids.clear();
+    this.isolatedGuid = null;
+    this.updateControls();
+    renderModelTree();
+    this.render();
+  }
+
+  standardView(view) {
+    if (view === "top") {
+      this.yaw = 0;
+      this.pitch = 1.48;
+    } else if (view === "front") {
+      this.yaw = -Math.PI / 2;
+      this.pitch = .08;
+    } else {
+      this.yaw = 0;
+      this.pitch = .08;
+    }
+    this.render();
+  }
+
+  toggleProjection() {
+    this.projection = this.projection === "perspective" ? "orthographic" : "perspective";
+    this.updateControls();
+    this.render();
+  }
+
+  toggleSection() {
+    this.sectionEnabled = !this.sectionEnabled;
+    this.updateControls();
+    this.render();
+  }
+
+  toggleMeasure() {
+    this.measureEnabled = !this.measureEnabled;
+    this.measurePoints = [];
+    dom.measurementHud.hidden = !this.measureEnabled;
+    dom.measurementHud.textContent = this.measureEnabled ? t("viewer.measureHint") : "";
+    this.updateControls();
+  }
+
+  measure(mesh) {
+    if (!this.measureEnabled) return;
+    if (this.measurePoints.length >= 2) this.measurePoints = [];
+    const bbox = mesh.element.geometry.bbox;
+    const point = bbox.min.map((value, axis) => (value + bbox.max[axis]) / 2);
+    this.measurePoints.push(point);
+    dom.measurementHud.hidden = false;
+    dom.measurementHud.textContent = this.measurePoints.length < 2
+      ? t("viewer.measureHint")
+      : t("viewer.measureResult", {
+        distance: Math.hypot(
+          ...this.measurePoints[0].map((value, axis) => value - this.measurePoints[1][axis]),
+        ).toFixed(2),
+      });
+  }
+
+  encodeViewpoint() {
+    const payload = {
+      yaw: this.yaw,
+      pitch: this.pitch,
+      distance: this.distance,
+      target: this.target,
+      projection: this.projection,
+      hidden: [...this.hiddenGuids],
+      isolated: this.isolatedGuid,
+      ghost: this.ghostContext,
+      section: this.sectionEnabled,
+      sectionZ: this.sectionZ,
+      element: state.selectedElementGuid,
+    };
+    return btoa(JSON.stringify(payload))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replace(/=+$/, "");
+  }
+
+  restoreViewpoint(encoded) {
+    if (!encoded) return false;
+    try {
+      const normalized = encoded.replaceAll("-", "+").replaceAll("_", "/");
+      const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+      const payload = JSON.parse(atob(padded));
+      const knownGuids = new Set(this.meshes.map((mesh) => mesh.element.global_id));
+      if (![payload.yaw, payload.pitch, payload.distance, payload.sectionZ].every(Number.isFinite)) return false;
+      if (!Array.isArray(payload.target) || payload.target.length !== 3 || !payload.target.every(Number.isFinite)) return false;
+      this.yaw = payload.yaw;
+      this.pitch = payload.pitch;
+      this.distance = Math.max(3, Math.min(80, payload.distance));
+      this.target = payload.target;
+      this.projection = payload.projection === "orthographic" ? "orthographic" : "perspective";
+      this.hiddenGuids = new Set((payload.hidden || []).filter((guid) => knownGuids.has(guid)));
+      this.isolatedGuid = knownGuids.has(payload.isolated) ? payload.isolated : null;
+      this.ghostContext = Boolean(payload.ghost);
+      this.sectionEnabled = Boolean(payload.section);
+      this.sectionZ = Number(payload.sectionZ);
+      dom.sectionLevel.value = String(this.sectionZ);
+      if (knownGuids.has(payload.element)) state.selectedElementGuid = payload.element;
+      this.updateControls();
+      renderModelTree();
+      this.render();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  updateControls() {
+    dom.ghostContext.setAttribute("aria-pressed", String(this.ghostContext));
+    dom.toggleProjection.setAttribute("aria-pressed", String(this.projection === "orthographic"));
+    dom.toggleSection.setAttribute("aria-pressed", String(this.sectionEnabled));
+    dom.toggleMeasure.setAttribute("aria-pressed", String(this.measureEnabled));
+    dom.sectionControl.hidden = !this.sectionEnabled;
   }
 
   render(picking = false) {
@@ -612,6 +927,8 @@ class IFCWebGLViewer {
     const gl = this.gl;
     gl.useProgram(this.program);
     gl.uniformMatrix4fv(this.mvpLocation, false, this.mvp());
+    gl.uniform1i(this.clipEnabledLocation, this.sectionEnabled ? 1 : 0);
+    gl.uniform1f(this.clipZLocation, this.sectionZ);
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
     gl.clearColor(picking ? 0 : .91, picking ? 0 : .95, picking ? 0 : .95, 1);
@@ -624,10 +941,17 @@ class IFCWebGLViewer {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
       const status = this.meshStatus(mesh);
       const color = picking
-        ? [mesh.index / 255, 0, 0, 1]
-        : status
-          ? STATUS[status].color
-          : [.66, .74, .75, 1];
+        ? [
+          (mesh.index & 255) / 255,
+          ((mesh.index >> 8) & 255) / 255,
+          ((mesh.index >> 16) & 255) / 255,
+          1,
+        ]
+        : this.isGhost(mesh)
+          ? [.70, .76, .77, 1]
+          : status
+            ? STATUS[status].color
+            : [.66, .74, .75, 1];
       gl.uniform4fv(this.colorLocation, color);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
     });
@@ -652,8 +976,12 @@ class IFCWebGLViewer {
     const pixel = new Uint8Array(4);
     this.gl.readPixels(x, y, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixel);
     this.render(false);
-    const mesh = this.meshes.find((item) => item.index === pixel[0]);
-    if (mesh) selectElement(mesh.element.global_id);
+    const pickedIndex = pixel[0] + pixel[1] * 256 + pixel[2] * 65536;
+    const mesh = this.meshes.find((item) => item.index === pickedIndex);
+    if (mesh) {
+      this.measure(mesh);
+      selectElement(mesh.element.global_id);
+    }
   }
 
   reset() {
@@ -722,6 +1050,17 @@ function perspective(fov, aspect, near, far) {
     0, 0, (2 * far * near) / (near - far), 0,
   ]);
 }
+function orthographic(left, right, bottom, top, near, far) {
+  return new Float32Array([
+    2 / (right - left), 0, 0, 0,
+    0, 2 / (top - bottom), 0, 0,
+    0, 0, -2 / (far - near), 0,
+    -(right + left) / (right - left),
+    -(top + bottom) / (top - bottom),
+    -(far + near) / (far - near),
+    1,
+  ]);
+}
 function multiply(a, b) {
   const out = new Float32Array(16);
   for (let column = 0; column < 4; column += 1) {
@@ -738,6 +1077,48 @@ function multiply(a, b) {
 
 const viewer = new IFCWebGLViewer(document.querySelector("#viewer"));
 dom.resetView.addEventListener("click", () => viewer.reset());
+const withSelection = (operation) => {
+  if (!operation()) showToast(t("viewer.noSelection"));
+};
+dom.fitSelection.addEventListener("click", () => withSelection(() => viewer.fitSelection()));
+dom.hideSelection.addEventListener("click", () => withSelection(() => viewer.hideSelection()));
+dom.isolateSelection.addEventListener("click", () => withSelection(() => viewer.isolateSelection()));
+dom.showAll.addEventListener("click", () => viewer.showAll());
+dom.ghostContext.addEventListener("click", () => {
+  viewer.ghostContext = !viewer.ghostContext;
+  viewer.updateControls();
+  viewer.render();
+});
+dom.toggleProjection.addEventListener("click", () => viewer.toggleProjection());
+dom.frontView.addEventListener("click", () => viewer.standardView("front"));
+dom.topView.addEventListener("click", () => viewer.standardView("top"));
+dom.rightView.addEventListener("click", () => viewer.standardView("right"));
+dom.toggleSection.addEventListener("click", () => viewer.toggleSection());
+dom.sectionLevel.addEventListener("input", () => {
+  viewer.sectionZ = Number(dom.sectionLevel.value);
+  viewer.render();
+});
+dom.toggleMeasure.addEventListener("click", () => viewer.toggleMeasure());
+dom.saveView.addEventListener("click", () => {
+  const encoded = viewer.encodeViewpoint();
+  localStorage.setItem("ifc-compliance-viewpoint", encoded);
+  syncUrl({ view: encoded });
+  showToast(t("viewer.viewSaved"));
+});
+dom.restoreView.addEventListener("click", () => {
+  const parameters = new URLSearchParams(window.location.search);
+  const restored = viewer.restoreViewpoint(
+    parameters.get("view") || localStorage.getItem("ifc-compliance-viewpoint"),
+  );
+  if (!restored) {
+    showToast(t("viewer.noSavedView"));
+    return;
+  }
+  if (state.selectedElementGuid) selectElement(state.selectedElementGuid);
+  else renderLocalizedUi();
+  showToast(t("viewer.viewRestored"));
+});
+dom.modelSearch.addEventListener("input", () => renderModelTree());
 dom.reloadRuns.addEventListener("click", () => loadRuns().catch((error) => {
   showToast(t("toast.failed", { error: error.message }));
 }));
@@ -828,6 +1209,10 @@ async function init() {
     dom.healthDot.classList.add("ready");
     viewer.load(scene.elements);
     selectRule(state.selectedRuleId);
+    const restored = viewer.restoreViewpoint(
+      parameters.get("view") || localStorage.getItem("ifc-compliance-viewpoint"),
+    );
+    if (restored && state.selectedElementGuid) selectElement(state.selectedElementGuid);
     renderLocalizedUi();
     syncUrl();
   } catch (error) {

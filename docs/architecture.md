@@ -40,11 +40,13 @@ flowchart LR
 | `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
 | `nl_query.py` | 中英文解析、Pydantic DSL 校验和确定性 domain query | 不生成 SQL，不调用 LLM，不决定新合规状态 |
 | `exports.py` | 从已审计运行生成 JSON、CSV、HTML 和 BCF 3.0 | 不重新执行 checker，不嵌入 IFC |
-| `frontend/` | 协调选择、筛选、三维拾取和解释 | 不在浏览器重新判定合规 |
+| `frontend/` | 协调选择、筛选、空间树、三维审查工具、视点和解释 | 不在浏览器重新判定合规 |
 
 ## 数据主键
 
 IFC `GlobalId` 是跨检查器、API、表格、三维网格和关系图的主要标识。规则使用稳定 `rule_id`。结果主键在 MVD 中等价于 `(execution_id, rule_id, element_guid)`。
+
+scene API 同时提供每个构件的 Project → Site → Building → Storey 空间链。viewer camera、projection、visibility、isolation、section 和 selection 可编码到 URL `view` 参数并保存到浏览器本地；恢复时过滤未知 GUID 和非法数值。该视点目前是客户端审查状态，尚未进入服务端 BCF export。
 
 `execution_id` 由 IFC 文件字节、规范化规则库和检查器版本的 SHA-256 摘要产生。相同输入得到相同执行号，便于比较重复运行。
 

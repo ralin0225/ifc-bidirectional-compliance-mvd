@@ -1,6 +1,6 @@
 # ADR 0002：使用原生 WebGL viewer
 
-- 状态：Accepted
+- 状态：Accepted（由 ADR 0008 扩展）
 - 日期：2026-07-30
 
 ## 背景
@@ -27,4 +27,3 @@ That Open Engine、IFC.js 或 Three.js 能提供成熟 viewer，但会引入 Nod
 ## 迁移影响
 
 以后替换为 That Open/IFC.js 时，保留 `/api/scene` 或改为浏览器读取 IFC；协调选择仍以 `GlobalId` 为契约。
-

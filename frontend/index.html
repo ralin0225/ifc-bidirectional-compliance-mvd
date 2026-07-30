@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>IFC compliance audit workbench</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314262d'/%3E%3Cpath d='M7 9h18M7 16h12M7 23h18' stroke='%23dbe9ea' stroke-width='3'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/styles.css?v=3">
+  <link rel="stylesheet" href="/static/styles.css?v=4">
 </head>
 <body>
   <a class="skip-link" href="#workspace" data-i18n="app.skip">跳到工作区</a>
@@ -71,6 +71,33 @@
         </div>
       </header>
       <div class="viewer-shell">
+        <div class="viewer-toolbar" role="toolbar" aria-label="三维审查工具" data-i18n-aria="viewer.tools">
+          <button id="fitSelection" data-i18n="viewer.fitSelection">适配选中</button>
+          <button id="hideSelection" data-i18n="viewer.hide">隐藏</button>
+          <button id="isolateSelection" data-i18n="viewer.isolate">隔离</button>
+          <button id="showAll" data-i18n="viewer.showAll">全部显示</button>
+          <button id="ghostContext" aria-pressed="false" data-i18n="viewer.ghost">幽灵上下文</button>
+          <button id="toggleProjection" aria-pressed="false" data-i18n="viewer.projection">正交 / 透视</button>
+          <button id="frontView" data-i18n="viewer.front">前视</button>
+          <button id="topView" data-i18n="viewer.top">顶视</button>
+          <button id="rightView" data-i18n="viewer.right">右视</button>
+          <button id="toggleSection" aria-pressed="false" data-i18n="viewer.section">Z 剖切</button>
+          <button id="toggleMeasure" aria-pressed="false" data-i18n="viewer.measure">测距</button>
+          <button id="saveView" data-i18n="viewer.saveView">保存视点</button>
+          <button id="restoreView" data-i18n="viewer.restoreView">恢复视点</button>
+        </div>
+        <aside class="model-tree" aria-labelledby="modelTreeTitle">
+          <h3 id="modelTreeTitle" data-i18n="viewer.tree">模型树</h3>
+          <input id="modelSearch" type="search"
+            data-i18n-placeholder="viewer.search"
+            placeholder="搜索 GlobalId、名称、类别或属性">
+          <div id="modelTree"></div>
+        </aside>
+        <label id="sectionControl" class="section-control" hidden>
+          <span data-i18n="viewer.sectionLevel">剖切高度</span>
+          <input id="sectionLevel" type="range" min="0" max="4" step="0.05" value="4">
+        </label>
+        <div id="measurementHud" class="measurement-hud" hidden></div>
         <canvas id="viewer" aria-label="可旋转和点击选择的 IFC 三维构件视图" data-i18n-aria="viewer.canvas"></canvas>
         <div class="viewer-hint" data-i18n="viewer.hint">拖动旋转 · 滚轮缩放 · 点击构件</div>
         <div id="viewerEmpty" class="viewer-empty" hidden data-i18n="viewer.empty">当前状态筛选没有构件</div>
@@ -183,6 +210,6 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/static/app.js?v=5"></script>
+  <script type="module" src="/static/app.js?v=7"></script>
 </body>
 </html>

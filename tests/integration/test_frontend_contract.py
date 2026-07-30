@@ -24,5 +24,26 @@ def test_frontend_exposes_coordinated_views():
         'id="graph"',
         'id="queryForm"',
         'id="queryResults"',
+        'id="modelTree"',
+        'id="modelSearch"',
+        'id="toggleProjection"',
+        'id="toggleSection"',
+        'id="toggleMeasure"',
+        'id="saveView"',
     ):
         assert required_id in html
+
+
+def test_viewer_supports_auditable_review_tools():
+    javascript = (FRONTEND_PATH / "app.js").read_text(encoding="utf-8")
+    for capability in (
+        "renderModelTree",
+        "hideSelection",
+        "isolateSelection",
+        "orthographic",
+        "uClipEnabled",
+        "measurePoints",
+        "encodeViewpoint",
+        "restoreViewpoint",
+    ):
+        assert capability in javascript

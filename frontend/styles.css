@@ -254,6 +254,159 @@ h3 { margin-bottom: 4px; font-size: 15px; }
 }
 #viewer { display: block; width: 100%; height: 100%; min-height: 500px; cursor: grab; touch-action: none; }
 #viewer.dragging { cursor: grabbing; }
+.viewer-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  display: flex;
+  overflow-x: auto;
+  width: calc(100% - 238px);
+  justify-content: flex-start;
+  gap: 4px;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.viewer-toolbar button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(20, 38, 45, .22);
+  border-radius: 3px;
+  padding: 5px 7px;
+  color: var(--ink);
+  background: rgba(251, 253, 253, .94);
+  box-shadow: 0 2px 10px rgba(20, 38, 45, .05);
+  font: 9px var(--mono);
+  cursor: pointer;
+}
+.viewer-toolbar button:hover,
+.viewer-toolbar button[aria-pressed="true"] {
+  border-color: var(--ink);
+  color: white;
+  background: var(--ink);
+}
+.model-tree {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  overflow: hidden;
+  width: 214px;
+  max-height: 310px;
+  border: 1px solid rgba(20, 38, 45, .18);
+  border-radius: 4px;
+  padding: 10px;
+  background: rgba(251, 253, 253, .94);
+  box-shadow: 0 8px 22px rgba(20, 38, 45, .09);
+  backdrop-filter: blur(8px);
+}
+.model-tree h3 {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font: 700 9px var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+#modelSearch {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 6px 7px;
+  color: var(--ink);
+  background: white;
+  font: 9px var(--mono);
+}
+#modelTree {
+  overflow: auto;
+  max-height: 244px;
+  margin-top: 7px;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+.tree-spatial summary,
+.tree-class summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 3px 0;
+  font: 10px var(--mono);
+  cursor: pointer;
+}
+.tree-spatial summary small,
+.tree-class summary span {
+  color: var(--muted);
+  font-size: 8px;
+}
+.tree-branch {
+  border-left: 1px solid var(--line);
+  margin-left: 4px;
+  padding-left: 7px;
+}
+.tree-class { margin-top: 2px; }
+.tree-elements { display: grid; gap: 2px; }
+.tree-element {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 6px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  padding: 4px 3px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.tree-element:hover { border-color: var(--line); background: #f2f7f7; }
+.tree-element.selected { border-color: var(--ink); background: white; }
+.tree-element.hidden-element { opacity: .38; text-decoration: line-through; }
+.tree-element.isolated-element { box-shadow: inset 2px 0 var(--focus); }
+.tree-element i {
+  width: 6px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--status-color, var(--na));
+}
+.tree-element span { min-width: 0; }
+.tree-element strong,
+.tree-element small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-element strong { font: 10px var(--body); }
+.tree-element small { color: var(--muted); font: 7px var(--mono); }
+.tree-empty { margin: 8px 0; color: var(--muted); font-size: 10px; }
+.section-control,
+.measurement-hud {
+  position: absolute;
+  z-index: 5;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: rgba(251, 253, 253, .94);
+  box-shadow: 0 4px 14px rgba(20, 38, 45, .08);
+  font: 9px var(--mono);
+}
+.section-control {
+  right: 12px;
+  bottom: 45px;
+  display: grid;
+  min-width: 180px;
+  gap: 4px;
+}
+.section-control[hidden],
+.measurement-hud[hidden] { display: none; }
+.measurement-hud {
+  bottom: 45px;
+  left: 12px;
+  max-width: 310px;
+  border-left: 3px solid var(--focus);
+}
 .viewer-hint {
   position: absolute;
   right: 12px;
@@ -496,6 +649,16 @@ tbody tr:hover, tbody tr.selected { background: #edf5f5; }
   }
   .panel { margin-bottom: 10px; min-height: 0; }
   .viewer-shell, #viewer { min-height: 420px; }
+  .viewer-toolbar {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    justify-content: flex-start;
+  }
+  .model-tree { top: 50px; left: 8px; width: 190px; max-height: 245px; }
+  #modelTree { max-height: 180px; }
+  .measurement-hud { right: 8px; bottom: 45px; left: 8px; max-width: none; }
+  .section-control { right: 8px; bottom: 80px; min-width: 160px; }
   .model-column { min-height: 0; }
   .rule-column, .evidence-column { max-height: none; }
   .measure-box { grid-template-columns: 1fr; }
