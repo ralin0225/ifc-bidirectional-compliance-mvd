@@ -395,6 +395,16 @@ tbody tr:hover, tbody tr.selected { background: #edf5f5; }
 .run-statuses { display: flex; flex-wrap: wrap; gap: 4px; }
 .run-statuses .mini-status { border-color: var(--status-color); color: var(--status-color); }
 .runs-empty { padding: 18px; }
+.export-links { display: flex; flex-wrap: wrap; gap: 4px; min-width: 150px; }
+.export-links a {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 3px 6px;
+  color: var(--ink);
+  font: 9px var(--mono);
+  text-decoration: none;
+}
+.export-links a:hover { border-color: var(--ink); background: #f2f7f7; }
 .query-layout {
   display: grid;
   grid-template-columns: minmax(260px, .8fr) minmax(300px, 1fr) minmax(320px, 1.2fr);

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .engine import CHECKER_VERSION, MODEL_ID, ComplianceEngine
+from .exports import bcf_report, csv_report, html_report, json_report
 from .graph import ego_graph
 from .ifc_adapter import serialise_element
 from .nl_query import (
@@ -105,6 +107,38 @@ def check_run(run_id: str) -> dict:
     if item is None:
         raise HTTPException(status_code=404, detail=f"Unknown check run: {run_id}")
     return item
+
+
+@app.get("/api/check-runs/{run_id}/export")
+def export_check_run(
+    run_id: str,
+    format: Literal["json", "csv", "html", "bcf"],
+    locale: Literal["zh-CN", "en"] = "en",
+) -> Response:
+    item = store.get_run(run_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Unknown check run: {run_id}")
+    exporters = {
+        "json": (json_report, "application/json", "attachment"),
+        "csv": (csv_report, "text/csv; charset=utf-8", "attachment"),
+        "html": (
+            lambda run: html_report(run, locale=locale),
+            "text/html; charset=utf-8",
+            "inline",
+        ),
+        "bcf": (bcf_report, "application/zip", "attachment"),
+    }
+    exporter, media_type, disposition = exporters[format]
+    extension = "bcfzip" if format == "bcf" else format
+    filename = f"ifc-compliance-{run_id}.{extension}"
+    return Response(
+        content=exporter(item),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.get("/api/check-runs/{base_run_id}/compare/{target_run_id}")

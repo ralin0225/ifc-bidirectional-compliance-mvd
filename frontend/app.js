@@ -415,6 +415,9 @@ function renderRuns() {
     const runUrl = new URL(window.location.href);
     runUrl.searchParams.set("run", run.run_id);
     runUrl.hash = "runs";
+    const exportUrl = (format) => (
+      `/api/check-runs/${encodeURIComponent(run.run_id)}/export?format=${format}&locale=${encodeURIComponent(state.locale)}`
+    );
     return `
       <tr data-run-id="${escapeHtml(run.run_id)}">
         <td>
@@ -425,6 +428,14 @@ function renderRuns() {
         <td class="metric">${run.duration_ms === null ? "—" : `${Number(run.duration_ms).toFixed(1)} ms`}</td>
         <td class="metric">${run.result_count}</td>
         <td><span class="run-statuses">${counts}</span></td>
+        <td>
+          <span class="export-links">
+            <a href="${exportUrl("json")}" download>${escapeHtml(t("runs.exportJson"))}</a>
+            <a href="${exportUrl("csv")}" download>${escapeHtml(t("runs.exportCsv"))}</a>
+            <a href="${exportUrl("html")}" target="_blank">${escapeHtml(t("runs.exportHtml"))}</a>
+            <a href="${exportUrl("bcf")}" download>${escapeHtml(t("runs.exportBcf"))}</a>
+          </span>
+        </td>
       </tr>`;
   }).join("");
 }

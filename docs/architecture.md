@@ -39,6 +39,7 @@ flowchart LR
 | `api.py` | 双向 API 和静态界面托管 | 不包含规则算法 |
 | `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
 | `nl_query.py` | 中英文解析、Pydantic DSL 校验和确定性 domain query | 不生成 SQL，不调用 LLM，不决定新合规状态 |
+| `exports.py` | 从已审计运行生成 JSON、CSV、HTML 和 BCF 3.0 | 不重新执行 checker，不嵌入 IFC |
 | `frontend/` | 协调选择、筛选、三维拾取和解释 | 不在浏览器重新判定合规 |
 
 ## 数据主键

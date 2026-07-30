@@ -150,3 +150,23 @@ def test_openapi_describes_validated_query_contracts():
     assert execute["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "QueryExecutionResponse"
     )
+
+
+def test_run_exports_cover_json_csv_html_and_bcf():
+    run_id = client.post("/api/checks/run").json()["run_id"]
+    expected = {
+        "json": "application/json",
+        "csv": "text/csv",
+        "html": "text/html",
+        "bcf": "application/zip",
+    }
+    for format_name, content_type in expected.items():
+        response = client.get(
+            f"/api/check-runs/{run_id}/export",
+            params={"format": format_name, "locale": "zh-CN"},
+        )
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith(content_type)
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert run_id in response.headers["content-disposition"]
+        assert response.content
