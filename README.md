@@ -142,4 +142,6 @@ docs/               架构、规则编写、研究对应、限制和 ADR
 - [研究方向对应](docs/research-alignment.md)
 - [模型与许可登记](docs/research/model-and-license-register.md)
 - [直接依赖许可登记](docs/research/dependency-license-register.md)
+- [验收报告](reports/acceptance.md)
+- [受控夹具性能基线](reports/performance-baseline.md)
 - [已知限制](docs/limitations.md)

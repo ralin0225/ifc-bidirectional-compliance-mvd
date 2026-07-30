@@ -50,3 +50,16 @@ def test_viewer_supports_auditable_review_tools():
         "restoreViewpoint",
     ):
         assert capability in javascript
+
+
+def test_frontend_publishes_browser_performance_diagnostics():
+    javascript = (FRONTEND_PATH / "app.js").read_text(encoding="utf-8")
+    for metric in (
+        "firstUsefulRenderMs",
+        "lastSelectionPaintMs",
+        "lastFilterPaintMs",
+        "viewerFps",
+        "viewerLongTaskCount",
+        "viewerLongTaskTotalMs",
+    ):
+        assert metric in javascript

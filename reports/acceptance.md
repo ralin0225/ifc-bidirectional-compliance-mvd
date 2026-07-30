@@ -1,36 +1,44 @@
-# MVD 验收报告
+# 全平台验收报告
 
 - 日期：2026-07-30
-- 版本：0.1.0
-- 模型：`data/models/generated/ibc_egress_demo.ifc`
+- 分支：`product/full-platform`
+- 版本：`0.1.0`
+- 受控模型：`data/models/generated/ibc_egress_demo.ifc`
 - IFC schema：IFC4
-- 规则数：3
-- 构件数：10
-- 结果数：15
+- 规则：3
+- 受检构件：10
+- 确定性结果：15
 
-## 自动化结果
+本报告记录可核查的 MVD 证据，不声称完整覆盖 IBC、官方认证、法律可靠性或现实项目性能。
+
+## 自动化与 CI
 
 ```text
 python -m pytest
-18 passed
+51 passed
 
 node --check frontend/app.js
 exit code 0
+
+python scripts/audit_repository.py
+passed
 ```
 
-覆盖：
+GitHub Actions 质量矩阵 run
+[`30584483711`](https://github.com/ralin0225/ifc-bidirectional-compliance-mvd/actions/runs/30584483711)
+在 Ubuntu CPython 3.11、3.12、3.13 和 Windows CPython 3.12 全部通过。每个作业从锁文件安装后执行
+`pip check`、公开仓库审计、前端语法检查、自动化测试、确定性夹具/IDS 重建 diff 和 CLI 检查。
 
-- 规则 JSON Schema、IBC 阈值与人工复核状态；
-- 每条规则的 PASS、FAIL、NOT_CHECKABLE、边界值、NOT_APPLICABLE；
-- 15 条人工 ground truth；
-- IfcOpenShell 属性和世界坐标几何 bbox；
-- buildingSMART IDS 1.0 验证；
-- rule → elements 与 element → rules；
-- API 稳定结构和错误响应；
-- GUID 与三维 mesh 对齐；
-- 重复检查结果一致；
-- 夹具重复生成 SHA-256 完全一致；
-- 前端不依赖 CDN。
+覆盖证据包括：
+
+- SQLite schema v4 migration、restart persistence、run 保存/比较和 model-scoped query history；
+- IFC 上传边界、签名/schema 校验、失败状态、取消、重启恢复、去重和语义索引；
+- 规则 JSON Schema、PASS/FAIL/NOT_CHECKABLE/NOT_APPLICABLE、阈值边界和 15 条人工声明 ground truth；
+- IfcOpenShell 属性与世界坐标 bbox，以及 buildingSMART IDS 1.0 信息要求分层；
+- 中英文 NL → validated DSL → deterministic evidence golden corpus；
+- JSON、CSV、HTML/打印和 BCF 3.0 导出及 BCF round-trip；
+- rule → element 与 element → rule、API 合约、i18n 完整性和前端能力契约；
+- GUID 与三维 mesh 对齐、重复执行一致、夹具与 IDS 重建 SHA-256 一致。
 
 ## 结果分布
 
@@ -41,25 +49,28 @@ exit code 0
 | NOT_CHECKABLE | 3 |
 | NOT_APPLICABLE | 3 |
 
-## 浏览器验收
+## 真实浏览器验收
 
-在 Chromium 内核浏览器对真实本地服务完成：
+在本地真实 Chromium 内核浏览器完成：
 
-- 三条规则切换正确更新目标 IFC 类别和五个候选构件；
-- WebGL 状态颜色、拖动旋转、滚轮缩放和颜色 ID picking 正常；
-- 点击三维 mesh 后，证据面板与结果行通过同一 GlobalId 联动；
-- 状态筛选同步控制结果表与三维场景；
-- element ego graph 只保留局部 Rule / Result / Element 链；
-- 390 × 844 移动端 viewport 使用单列布局，无横向溢出；
-- 浏览器 console warning/error：0。
+- 简体中文与英文主流程、规则切换、结果/证据/图谱联动；
+- 文件选择器导入受控 IFC，验证完成、内容去重、模型登记和 model-scoped run；
+- 自然语言查询同步结果和 3D；
+- run history/compare，以及 JSON、CSV、HTML 和 BCF 导出；
+- 3D picking、状态 overlay、搜索、模型树、隐藏、隔离、ghost、正交/透视、标准视图、Z 剖切、bbox 中心点测量和 viewpoint URL 恢复；
+- 390×844 单列布局，无横向溢出；
+- 性能采样期间 5 次冷导航及选择/筛选交互，console warning/error 为 0。
+
+浏览器性能数字及限制见
+[`performance-baseline.md`](performance-baseline.md)。
 
 ## 可移植性与公开安全
 
-- 运行只需 Python 3.11–3.13；
-- `run.ps1` / `run.sh` 自动创建仓库内 `.venv`；
-- 已从本地 Git 提交创建全新 clone，在全新 `.venv` 中按 lock 安装、运行 18 项测试和 CLI 检查；结束时 tracked worktree 仍为空；
-- 无 Neo4j、Docker、Node.js、CDN、IBC PDF 或外部 IFC 前置设置；
-- 依赖完整解析在 `requirements.lock`；
-- 受版权保护的 IBC PDF、用户原始 IFC、`.env`、虚拟环境和结果日志均不提交；
-- 源码、IFC header、文档和配置经扫描，不含个人本机绝对路径；
-- 未发现 token、private key 或硬编码密码。
+- 核心只需 Python 3.11–3.13；不要求 API key、Docker、数据库服务器、Node.js、CDN、用户 PDF 或外部 IFC；
+- `run.ps1` / `run.sh` 自动建立仓库内 `.venv`；
+- 运行时依赖和开发依赖均精确锁定；Python 3.11 的 NumPy 兼容分支已在隔离环境和 CI 验证；
+- 审计拒绝 tracked runtime data、用户目录绝对路径、常见 secret/private-key 模式和超过 1 MiB 的文件；
+- 用户原始 IFC、`.env`、虚拟环境、SQLite/WAL、导入暂存和结果日志不提交；
+- 合成模型来源、SHA-256 和许可登记在
+  [`model-and-license-register.md`](../docs/research/model-and-license-register.md)；
+- 现实项目模型尚未登记，因此现实规模集成/性能验收仍是明确未完成项。

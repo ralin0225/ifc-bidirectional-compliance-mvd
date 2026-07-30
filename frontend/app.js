@@ -88,6 +88,53 @@ const escapeHtml = (value) => String(value ?? "")
   .replaceAll(">", "&gt;")
   .replaceAll('"', "&quot;");
 
+function recordNextPaint(metric, started) {
+  if (!window.performance?.now || !window.requestAnimationFrame) return;
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      document.documentElement.dataset[metric] =
+        (window.performance.now() - started).toFixed(3);
+    });
+  });
+}
+
+function sampleViewerPerformance(durationMs = 1000) {
+  if (!window.performance?.now || !window.requestAnimationFrame) return;
+  const started = window.performance.now();
+  let frames = 0;
+  let longTaskCount = 0;
+  let longTaskTotalMs = 0;
+  let observer = null;
+  if (
+    window.PerformanceObserver
+    && PerformanceObserver.supportedEntryTypes?.includes("longtask")
+  ) {
+    observer = new PerformanceObserver((entries) => {
+      entries.getEntries().forEach((entry) => {
+        longTaskCount += 1;
+        longTaskTotalMs += entry.duration;
+      });
+    });
+    observer.observe({ type: "longtask", buffered: true });
+  }
+  const frame = (now) => {
+    frames += 1;
+    viewer.render();
+    if (now - started < durationMs) {
+      window.requestAnimationFrame(frame);
+      return;
+    }
+    observer?.disconnect();
+    const elapsed = now - started;
+    document.documentElement.dataset.viewerFps =
+      ((frames * 1000) / elapsed).toFixed(1);
+    document.documentElement.dataset.viewerLongTaskCount = String(longTaskCount);
+    document.documentElement.dataset.viewerLongTaskTotalMs =
+      longTaskTotalMs.toFixed(3);
+  };
+  window.requestAnimationFrame(frame);
+}
+
 function t(key, variables = {}) {
   const template = state.messages[state.locale]?.[key]
     ?? state.messages.en?.[key]
@@ -258,6 +305,7 @@ function renderStatusControls() {
   `).join("");
   dom.statusFilters.querySelectorAll("[data-status]").forEach((button) => {
     button.addEventListener("click", () => {
+      const started = window.performance?.now?.();
       const status = button.dataset.status;
       if (state.activeStatuses.has(status)) state.activeStatuses.delete(status);
       else state.activeStatuses.add(status);
@@ -265,6 +313,7 @@ function renderStatusControls() {
       renderResults();
       renderModelTree();
       viewer.render();
+      if (started !== undefined) recordNextPaint("lastFilterPaintMs", started);
     });
   });
 }
@@ -443,6 +492,7 @@ function selectRule(ruleId) {
 }
 
 function selectElement(guid) {
+  const started = window.performance?.now?.();
   state.selectedElementGuid = guid;
   if (!resultFor(state.selectedRuleId, guid)) {
     const first = state.results.find((result) => result.element_guid === guid);
@@ -456,6 +506,7 @@ function selectElement(guid) {
   viewer.render();
   renderGraph().catch(console.error);
   syncUrl();
+  if (started !== undefined) recordNextPaint("lastSelectionPaintMs", started);
 }
 
 function formatDate(value) {
@@ -1381,6 +1432,12 @@ async function init() {
     if (restored && state.selectedElementGuid) selectElement(state.selectedElementGuid);
     renderLocalizedUi();
     syncUrl();
+    const usefulStarted = window.performance?.now?.();
+    if (usefulStarted !== undefined) {
+      recordNextPaint("firstUsefulRenderMs", 0);
+      window.performance.mark("ifc-workbench-useful");
+      sampleViewerPerformance();
+    }
   } catch (error) {
     dom.healthText.textContent = t("app.loadFailed");
     dom.evidencePanel.innerHTML = `<p class="empty-copy">${escapeHtml(t("toast.failed", { error: error.message }))}</p>`;

@@ -54,6 +54,14 @@ frontend contract + browser smoke test
 
 `scripts/generate_fixture.py` 固定 IFC header、产品 GlobalId、属性集和关系 GlobalId。对同一脚本与 IfcOpenShell 版本，重复生成应得到相同文件哈希。依赖版本锁在 `pyproject.toml` 中。
 
+## 性能 smoke baseline
+
+```text
+python scripts/benchmark_fixture.py --iterations 7
+```
+
+脚本输出 JSON，覆盖导入/索引、整批 checker、scene build/payload、SQLite、NL 查询和 Python 托管内存。真实浏览器的 first-useful-render、选择/筛选到下一次绘制、主动 FPS 与 long task 由前端 runtime dataset 发布。基线、环境和只适用于受控夹具的预算记录在 `reports/performance-baseline.md`；这些数字不得外推为现实项目性能。
+
 ## 手工浏览器验收
 
 自动化测试通过后，还应执行：
