@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ifc-compliance/rule.schema.json",
+  "title": "IFC compliance rule collection",
+  "type": "object",
+  "required": ["document", "rules"],
+  "properties": {
+    "document": {
+      "type": "object",
+      "required": ["id", "title", "edition"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "edition": {"type": "string"}
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"$ref": "#/$defs/rule"}
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": [
+        "rule_id", "version", "title", "source", "target", "applicability",
+        "requirement", "required_information", "execution_method",
+        "mapping", "review_status"
+      ],
+      "properties": {
+        "rule_id": {"type": "string", "pattern": "^IBC2021-"},
+        "version": {"type": "string"},
+        "title": {"type": "string"},
+        "source": {
+          "type": "object",
+          "required": ["document_id", "section", "excerpt", "pdf_page"],
+          "properties": {
+            "document_id": {"const": "IBC-2021"},
+            "section": {"type": "string"},
+            "excerpt": {"type": "string", "maxLength": 180},
+            "pdf_page": {"type": "integer", "minimum": 1}
+          }
+        },
+        "target": {
+          "type": "object",
+          "required": ["ifc_class"],
+          "properties": {"ifc_class": {"enum": ["IfcDoor", "IfcSpace"]}}
+        },
+        "requirement": {
+          "type": "object",
+          "required": ["metric", "operator", "value", "unit"],
+          "properties": {
+            "metric": {"type": "string"},
+            "operator": {"const": ">="},
+            "value": {"type": "number"},
+            "unit": {"const": "mm"}
+          }
+        },
+        "review_status": {"const": "human_verified"}
+      }
+    }
+  }
+}
+

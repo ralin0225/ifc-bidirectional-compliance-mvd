@@ -1,0 +1,160 @@
+{
+  "document": {
+    "id": "IBC-2021",
+    "title": "2021 International Building Code",
+    "publisher": "International Code Council",
+    "edition": "2021",
+    "source_file_local_only": "2021_International_Building_Code.pdf",
+    "copyright_note": "The source PDF is not redistributed. Only short, clause-specific excerpts needed for traceability are included.",
+    "reviewed_on": "2026-07-30"
+  },
+  "rules": [
+    {
+      "rule_id": "IBC2021-1010.1.1-WIDTH",
+      "version": "1.0.0",
+      "title": "Minimum egress door clear opening width",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1010.1.1",
+        "printed_page": "10-13",
+        "pdf_page": 316,
+        "excerpt": "shall provide a minimum clear opening width of 32 inches (813 mm)"
+      },
+      "target": {"ifc_class": "IfcDoor"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "The clause contains occupancy, door-type, dwelling-unit and width exceptions not modeled by this MVD.",
+        "The MVD evaluates a single leaf and does not infer occupant-load capacity."
+      ],
+      "requirement": {
+        "metric": "clear_opening_width",
+        "operator": ">=",
+        "value": 813.0,
+        "unit": "mm"
+      },
+      "required_information": [
+        {
+          "kind": "property",
+          "property_set": "Pset_ComplianceMeasurements",
+          "property": "ClearOpeningWidth",
+          "data_type": "IfcLengthMeasure",
+          "ids_specification": "IDS-DOOR-CLEAR-WIDTH"
+        }
+      ],
+      "execution_method": "IFC_PROPERTY",
+      "mapping": {
+        "primary": "Pset_ComplianceMeasurements.ClearOpeningWidth",
+        "fallbacks": [],
+        "interpretation": "ClearWidth is treated as the clear opening measured with a swinging leaf open 90 degrees; OverallWidth is deliberately not substituted."
+      },
+      "automation_level": "deterministic_mvd",
+      "review_status": "human_verified",
+      "review_note": "Threshold and metric wording were manually checked against the local 2021 IBC PDF. Applicability exceptions are intentionally narrowed for a controlled demonstrator."
+    },
+    {
+      "rule_id": "IBC2021-1010.1.1-HEIGHT",
+      "version": "1.0.0",
+      "title": "Minimum egress door clear opening height",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1010.1.1",
+        "printed_page": "10-13",
+        "pdf_page": 316,
+        "excerpt": "minimum clear opening height of doors shall be not less than 80 inches (2032 mm)"
+      },
+      "target": {"ifc_class": "IfcDoor"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "IBC 1010.1.1 contains several door-height exceptions; this MVD fixture does not model their triggering conditions."
+      ],
+      "requirement": {
+        "metric": "clear_opening_height",
+        "operator": ">=",
+        "value": 2032.0,
+        "unit": "mm"
+      },
+      "required_information": [
+        {
+          "kind": "property",
+          "property_set": "Pset_ComplianceMeasurements",
+          "property": "ClearOpeningHeight",
+          "data_type": "IfcLengthMeasure",
+          "ids_specification": "IDS-DOOR-CLEAR-HEIGHT"
+        }
+      ],
+      "execution_method": "IFC_PROPERTY",
+      "mapping": {
+        "primary": "Pset_ComplianceMeasurements.ClearOpeningHeight",
+        "fallbacks": [],
+        "interpretation": "The authored property is treated as clear opening height; nominal OverallHeight is not assumed equivalent."
+      },
+      "automation_level": "deterministic_mvd",
+      "review_status": "human_verified",
+      "review_note": "Threshold was manually checked against the local 2021 IBC PDF; exception handling remains outside the MVD."
+    },
+    {
+      "rule_id": "IBC2021-1003.2-EGRESS-HEIGHT",
+      "version": "1.0.0",
+      "title": "Minimum means-of-egress ceiling height",
+      "source": {
+        "document_id": "IBC-2021",
+        "chapter": "10 - Means of Egress",
+        "section": "1003.2",
+        "printed_page": "10-1",
+        "pdf_page": 304,
+        "excerpt": "shall have a ceiling height of not less than 7 feet 6 inches (2286 mm) above the finished floor"
+      },
+      "target": {"ifc_class": "IfcSpace"},
+      "applicability": [
+        {
+          "property_set": "Pset_ComplianceApplicability",
+          "property": "IsMeansOfEgress",
+          "operator": "is_true",
+          "missing_status": "NOT_CHECKABLE"
+        }
+      ],
+      "exceptions": [
+        "The eight exceptions in IBC 1003.2 are not inferred by this MVD.",
+        "Sloped ceilings and local projections require richer geometry and are routed to manual review in a production implementation."
+      ],
+      "requirement": {
+        "metric": "geometry_bounding_height",
+        "operator": ">=",
+        "value": 2286.0,
+        "unit": "mm"
+      },
+      "required_information": [
+        {
+          "kind": "attribute",
+          "attribute": "Representation",
+          "ids_specification": "IDS-EGRESS-SPACE-GEOMETRY"
+        }
+      ],
+      "execution_method": "IFC_GEOMETRY",
+      "mapping": {
+        "primary": "IfcSpace.Representation geometric bounding box in world coordinates",
+        "fallbacks": [],
+        "interpretation": "For the controlled orthogonal fixtures, the vertical bounding-box extent is the floor-to-ceiling height. This is not valid for arbitrary sloped or stepped spaces."
+      },
+      "automation_level": "deterministic_mvd",
+      "review_status": "human_verified",
+      "review_note": "Threshold was manually checked against the local 2021 IBC PDF. The bounding-box interpretation is limited to controlled rectangular fixtures."
+    }
+  ]
+}

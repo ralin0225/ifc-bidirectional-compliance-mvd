@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IFC ↔ IBC 合规探索 MVD</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2314262d'/%3E%3Cpath d='M7 9h18M7 16h12M7 23h18' stroke='%23dbe9ea' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">跳到工作区</a>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">2021 IBC · IFC4 · 可追溯演示</p>
+      <h1>条文与构件，双向查证。</h1>
+    </div>
+    <div class="run-meta">
+      <span id="healthDot" class="health-dot" aria-hidden="true"></span>
+      <span id="healthText">正在载入检查器</span>
+      <button id="runChecks" class="action-button">重新检查</button>
+    </div>
+  </header>
+
+  <nav class="trace-rail" aria-label="证据链">
+    <span>IBC 条文</span><i></i><span>结构化规则</span><i></i><span>IFC 信息</span><i></i>
+    <span>确定性检查</span><i></i><span>证据</span>
+  </nav>
+
+  <main id="workspace" class="workspace">
+    <aside class="rule-column panel">
+      <header class="panel-heading">
+        <div>
+          <p class="panel-kicker">Regulation → elements</p>
+          <h2>选择规则</h2>
+        </div>
+        <span id="ruleCount" class="count-chip">0</span>
+      </header>
+      <div id="ruleList" class="rule-list" role="list"></div>
+      <section class="ids-card" aria-labelledby="idsTitle">
+        <div>
+          <p class="panel-kicker">信息质量 ≠ 设计合规</p>
+          <h3 id="idsTitle">IDS 可检查性</h3>
+        </div>
+        <div id="idsSummary">载入中…</div>
+      </section>
+    </aside>
+
+    <section class="model-column panel">
+      <header class="panel-heading model-heading">
+        <div>
+          <p class="panel-kicker">IFC4 geometry · metres</p>
+          <h2 id="viewerTitle">构件状态视图</h2>
+        </div>
+        <div class="viewer-actions">
+          <button id="resetView" class="text-button">重置视角</button>
+        </div>
+      </header>
+      <div class="viewer-shell">
+        <canvas id="viewer" aria-label="可旋转和点击选择的 IFC 三维构件视图"></canvas>
+        <div class="viewer-hint">拖动旋转 · 滚轮缩放 · 点击构件</div>
+        <div id="viewerEmpty" class="viewer-empty" hidden>当前状态筛选没有构件</div>
+      </div>
+      <div id="legend" class="legend" aria-label="检查状态图例"></div>
+    </section>
+
+    <aside class="evidence-column panel">
+      <header class="panel-heading">
+        <div>
+          <p class="panel-kicker">Element → regulations</p>
+          <h2>判定证据</h2>
+        </div>
+      </header>
+      <div id="evidencePanel" class="evidence-panel">
+        <p class="empty-copy">选择一条规则，再点击三维构件或结果行。</p>
+      </div>
+    </aside>
+
+    <section class="results-panel panel">
+      <header class="panel-heading results-heading">
+        <div>
+          <p class="panel-kicker">Grounded outcomes</p>
+          <h2>检查结果</h2>
+        </div>
+        <div id="statusFilters" class="status-filters" aria-label="按状态筛选"></div>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>状态</th>
+              <th>IFC 构件</th>
+              <th>实测</th>
+              <th>要求</th>
+              <th>证据来源</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="graph-panel panel">
+      <header class="panel-heading">
+        <div>
+          <p class="panel-kicker">Local provenance graph</p>
+          <h2>局部关系图</h2>
+        </div>
+        <span class="quiet-note">只显示选中对象的 ego graph</span>
+      </header>
+      <svg id="graph" role="img" aria-label="规则、构件、结果和条文的局部关系图"></svg>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

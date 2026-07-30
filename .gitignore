@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+node_modules/
+dist/
+tmp/
+reports/runtime/
+data/results/*.json
+!data/results/.gitkeep
+*.log
+.DS_Store
+Thumbs.db
+
+# Copyright-restricted or user-provided source documents/models stay local.
+2021_International_Building_Code.pdf
+data/regulations/source-pdf/
+data/models/source/

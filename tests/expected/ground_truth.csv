@@ -1,0 +1,16 @@
+model_id,element_guid,rule_id,expected_status,note
+ibc-egress-demo,2BE8k7MvHQ6uT6ldHLlcK2,IBC2021-1010.1.1-WIDTH,PASS,Door PASS - generous opening
+ibc-egress-demo,2BE8k7MvHQ6uT6ldHLlcK2,IBC2021-1010.1.1-HEIGHT,PASS,Door PASS - generous opening
+ibc-egress-demo,1tWTPBvlDLvxQK4HwAuKNP,IBC2021-1010.1.1-WIDTH,PASS,Door PASS - exact threshold
+ibc-egress-demo,1tWTPBvlDLvxQK4HwAuKNP,IBC2021-1010.1.1-HEIGHT,PASS,Door PASS - exact threshold
+ibc-egress-demo,3Pjm5RApzV1fY$bhkg16EY,IBC2021-1010.1.1-WIDTH,FAIL,Door FAIL - undersized
+ibc-egress-demo,3Pjm5RApzV1fY$bhkg16EY,IBC2021-1010.1.1-HEIGHT,FAIL,Door FAIL - undersized
+ibc-egress-demo,3TEy3Es3TVs8P_dsVhP_Js,IBC2021-1010.1.1-WIDTH,NOT_CHECKABLE,Door NOT_CHECKABLE - clear dimensions absent
+ibc-egress-demo,3TEy3Es3TVs8P_dsVhP_Js,IBC2021-1010.1.1-HEIGHT,NOT_CHECKABLE,Door NOT_CHECKABLE - clear dimensions absent
+ibc-egress-demo,0iAvTxmvHJMwLrc_JrtKen,IBC2021-1010.1.1-WIDTH,NOT_APPLICABLE,Door NOT_APPLICABLE - service access
+ibc-egress-demo,0iAvTxmvHJMwLrc_JrtKen,IBC2021-1010.1.1-HEIGHT,NOT_APPLICABLE,Door NOT_APPLICABLE - service access
+ibc-egress-demo,3NZrHJJsbJIvMNsLztJDZg,IBC2021-1003.2-EGRESS-HEIGHT,PASS,Egress Space PASS - 2400 mm
+ibc-egress-demo,1kDvBRdmzLcvx4Yw0HcW4A,IBC2021-1003.2-EGRESS-HEIGHT,PASS,Egress Space PASS - exact 2286 mm
+ibc-egress-demo,3RPlReNMbSwByN_$67jOSj,IBC2021-1003.2-EGRESS-HEIGHT,FAIL,Egress Space FAIL - 2200 mm
+ibc-egress-demo,2w7pdKYE9V4gWDheMPZFjK,IBC2021-1003.2-EGRESS-HEIGHT,NOT_CHECKABLE,Egress Space NOT_CHECKABLE - no representation
+ibc-egress-demo,0HU8idihXKwhGusAAb0jKz,IBC2021-1003.2-EGRESS-HEIGHT,NOT_APPLICABLE,Space NOT_APPLICABLE - storage

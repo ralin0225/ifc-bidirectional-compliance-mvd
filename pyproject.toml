@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ifc-bidirectional-compliance-mvd"
+version = "0.1.0"
+description = "Traceable bidirectional exploration from IBC clauses to IFC elements and back"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "Ruilin" }]
+dependencies = [
+  "fastapi==0.116.1",
+  "ifcopenshell==0.8.3.post2",
+  "ifctester==0.8.3",
+  "jsonschema==4.25.0",
+  "uvicorn==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx==0.28.1",
+  "pytest==8.4.1",
+]
+
+[project.scripts]
+ifc-mvd = "ifc_compliance_mvd.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+  "ignore:datetime.datetime.utcnow\\(\\) is deprecated:DeprecationWarning:ifcopenshell.api.project.create_file",
+]
