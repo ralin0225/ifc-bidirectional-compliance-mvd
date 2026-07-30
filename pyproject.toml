@@ -23,6 +23,7 @@ dependencies = [
 dev = [
   "bcf-client==0.8.5",
   "httpx==0.28.1",
+  "packaging==26.2",
   "pytest==8.4.1",
 ]
 

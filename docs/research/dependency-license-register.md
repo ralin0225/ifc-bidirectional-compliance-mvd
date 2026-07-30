@@ -23,6 +23,7 @@ IfcOpenShell/IfcTester 的 LGPL 义务不能被仓库 MIT 许可证覆盖或改�
 |---|---:|---|---|
 | `bcf-client` | 0.8.5 | GPLv3 classifier | 只在 `tests/unit/test_exports.py` 解析本项目生成的 BCF；`src/` 不 import `bcf` |
 | `httpx` | 0.28.1 | BSD-3-Clause | FastAPI TestClient |
+| `packaging` | 26.2 | Apache-2.0 OR BSD-2-Clause | repository audit 的 requirement 解析 |
 | `pytest` | 8.4.1 | MIT | 自动化 |
 
 `bcf-client` 有意放在 `[project.optional-dependencies].dev`，不列入 runtime dependencies。生产 exporter 自己写规范限定的 XML/ZIP，并用 `defusedxml` 做安全检查；如果未来把 GPL parser 引入 runtime，必须先做独立许可决策。
