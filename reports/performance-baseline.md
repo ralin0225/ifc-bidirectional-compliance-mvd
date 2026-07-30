@@ -12,7 +12,7 @@
 命令：
 
 ```text
-python scripts/benchmark_fixture.py --iterations 7
+python scripts/benchmark_model.py --iterations 7
 ```
 
 每项先 warm-up，再记录 7 次；P95 采用 nearest-rank。导入测试每次使用全新临时 SQLite 和导入目录，并强制走解析与语义索引而非去重路径。
@@ -47,5 +47,5 @@ python scripts/benchmark_fixture.py --iterations 7
 
 - 这些预算仅用于这个确定性小夹具的 gross-regression gate，不是现实模型 SLO。
 - 首屏包含本地 API、SQLite 和 WebGL 初始化，但不模拟广域网。
-- scene 当前为单 payload；只有现实模型验证后才能决定 chunk/stream 策略和对应预算。
-- 现实模型必须另行记录构件、三角形、文件大小、native/RSS memory、浏览器版本、first useful render、选择/筛选、FPS 和 checker 全量时间。
+- 现实模型仍证明当前 scene 是单 payload；分块方向见 ADR 0011。
+- 现实模型的规模、后端和真实浏览器数据在 `real-model-performance.md` 单独记录，不能和本表混为一个 SLO。

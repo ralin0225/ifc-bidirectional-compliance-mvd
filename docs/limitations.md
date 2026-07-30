@@ -10,7 +10,7 @@
 
 ## IFC 与信息异构性
 
-- 夹具是受控 IFC4，不代表 Revit、Archicad 或其他作者工具的全部导出差异。
+- 已验证受控 IFC4 和一项 Revit 2011/optimizer 生成的 CC BY 4.0 IFC2X3 clinic；单个现实模型仍不代表 Revit、Archicad 或其他作者工具/版本的全部导出差异。
 - 门 clear opening 使用自定义 `Pset_ComplianceMeasurements`。真实模型需要受控映射表、单位转换、类型继承和来源置信。
 - 当前适用性依赖 `Pset_ComplianceApplicability.IsMeansOfEgress`，没有从空间连通、疏散路径或房间功能自动推断。
 - 缺失表示的空间在 viewer 中显示为低矮 placeholder；它只用于保持选择能力，明确不参与几何判定。
@@ -34,7 +34,7 @@
 - 中英文 NL parser 是受控词典/模式垂直切片；当前 golden corpus 只有 8 条表达，不代表开放域语言理解。未识别输入会拒绝执行。
 - 没有启用 LLM adapter；当前也不支持 storey/property 复杂条件和自然语言 run comparison。
 - BCF 3.0 topic/selection 已可交换；浏览器可以把实时 camera、visibility、projection、section 和 selection 保存到 URL/localStorage，但 exporter 尚未接收该状态，BCF 仍使用稳定通用 camera，也没有 snapshot、导入或回写。
-- 浏览器 viewer 是轻量 WebGL triangle renderer：已有空间树、隐藏/隔离、单 Z 剖切和 bbox-center 测距，但没有 IFC 材质、流式加载、section cap、表面吸附、markup 或大模型 benchmark。
+- 浏览器 viewer 是轻量 WebGL triangle renderer：已有空间树、隐藏/隔离、单 Z 剖切和 bbox-center 测距；13 MB 现实模型 benchmark 已建立，但 scene 仍是单一 1.66 MB payload，没有增量分块、IFC 材质、section cap、表面吸附或 markup。
 - API 可按 model id 运行检查和场景，但 UI 尚无模型版本关系、联邦坐标或跨模型 compare；job 是单进程 `BackgroundTasks`，只有 queued cancellation，没有独立 worker、鉴权或多 writer 并发。
 - `data/results/latest.json` 是本地运行产物，故意不提交。
 
@@ -42,6 +42,6 @@
 
 - 由有资质人员确认条文、采用版本、当地修订和所有例外；
 - 建立模型交换信息要求、命名映射、单位和可信度策略；
-- 针对真实作者工具 IFC 建 benchmark；
+- 扩展到更多现实作者工具/版本和 mutation benchmark；
 - 对几何容差、性能、攻击性文件和审计日志做工程化；
 - 让所有自动结论能由人工复查和覆盖，并保存审批责任链。

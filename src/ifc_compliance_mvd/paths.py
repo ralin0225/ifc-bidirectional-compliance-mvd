@@ -5,6 +5,9 @@ ROOT = Path(__file__).resolve().parents[2]
 RULES_PATH = ROOT / "data" / "regulations" / "ibc_2021_rules.json"
 RULE_SCHEMA_PATH = ROOT / "data" / "regulations" / "rule.schema.json"
 MODEL_PATH = ROOT / "data" / "models" / "generated" / "ibc_egress_demo.ifc"
+LICENSED_MODEL_MANIFEST_PATH = (
+    ROOT / "data" / "models" / "external" / "medical-dental-clinic-architectural.json"
+)
 IDS_PATH = ROOT / "data" / "ids" / "ibc_egress_information_requirements.ids"
 RESULTS_PATH = ROOT / "data" / "results" / "latest.json"
 FRONTEND_PATH = ROOT / "frontend"
@@ -13,3 +16,4 @@ RUNTIME_DATA_PATH = Path(
 )
 DATABASE_PATH = RUNTIME_DATA_PATH / "compliance.db"
 IMPORTS_PATH = RUNTIME_DATA_PATH / "imports"
+LICENSED_MODELS_PATH = RUNTIME_DATA_PATH / "licensed-models"

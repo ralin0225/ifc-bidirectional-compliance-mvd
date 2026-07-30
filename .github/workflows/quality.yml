@@ -69,4 +69,4 @@ jobs:
         run: python -m ifc_compliance_mvd.cli check
 
       - name: Run controlled fixture benchmark smoke
-        run: python scripts/benchmark_fixture.py --iterations 1
+        run: python scripts/benchmark_model.py --iterations 1

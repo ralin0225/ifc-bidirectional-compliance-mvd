@@ -85,6 +85,12 @@ python -m venv .venv
 # 重建公开的小型 IFC 和 IDS 夹具
 .\.venv\Scripts\python scripts\generate_fixture.py
 .\.venv\Scripts\python scripts\generate_ids.py
+
+# 可选：下载并校验登记的 CC BY 4.0 真实 clinic IFC 到 ignored runtime
+.\.venv\Scripts\python scripts\fetch_licensed_model.py
+
+# 后端性能基线；默认受控夹具，也可通过 --fixture 指定已登记模型
+.\.venv\Scripts\python scripts\benchmark_model.py --iterations 7
 ```
 
 ## API 摘要
@@ -121,7 +127,7 @@ python -m venv .venv
 ```text
 data/regulations/   人工复核的结构化 IBC 规则与 JSON Schema
 data/ids/           由规则信息要求生成的 IDS 1.0
-data/models/        可公开、可重建的小型 IFC4
+data/models/        可公开、可重建的小型 IFC4 与外部模型 provenance manifest
 src/                检查器、IFC 适配、API、图查询
 frontend/           零构建步骤的原生 WebGL 协调界面
 scripts/            IFC 和 IDS 生成器
@@ -131,7 +137,7 @@ docs/               架构、规则编写、研究对应、限制和 ADR
 
 ## 原始材料与版权
 
-原始 2021 IBC PDF 不在仓库中，也不是运行依赖。仓库只保存定位复核所必需的短摘录、条款号、页码、阈值和人工计算解释。原始大型 IFC 同样没有复制；演示使用代码生成的 14 KB IFC4 夹具。
+原始 2021 IBC PDF 不在仓库中，也不是运行依赖。仓库只保存定位复核所必需的短摘录、条款号、页码、阈值和人工计算解释。原始大型 IFC 不进入 Git；核心演示使用代码生成的 14 KB IFC4 夹具。另有一项固定 commit、checksum、署名和 CC BY 4.0 许可的真实 clinic IFC 登记，可按需下载到 ignored runtime，核心启动与 CI 不依赖网络模型。
 
 进一步阅读：
 
@@ -144,4 +150,5 @@ docs/               架构、规则编写、研究对应、限制和 ADR
 - [直接依赖许可登记](docs/research/dependency-license-register.md)
 - [验收报告](reports/acceptance.md)
 - [受控夹具性能基线](reports/performance-baseline.md)
+- [许可现实模型性能基线](reports/real-model-performance.md)
 - [已知限制](docs/limitations.md)

@@ -9,7 +9,7 @@
 
 ## 决策
 
-1. `scripts/benchmark_fixture.py` 对固定 IFC 进行 warm-up 后重复测量，输出机器可读 JSON。
+1. `scripts/benchmark_model.py` 默认对固定 IFC 进行 warm-up 后重复测量，也可接收有独立 provenance 登记的外部 IFC，输出机器可读 JSON。
 2. 前端通过 User Timing 与 `<html>` runtime dataset 发布 first-useful-render、选择/筛选到下一次绘制、主动 viewer FPS 和 long-task 指标；不上传遥测。
 3. `reports/performance-baseline.md` 保存一次明确环境的基线和只适用于受控夹具的宽松回归预算。
 4. 预算采用 P95（FPS 采用 minimum）：

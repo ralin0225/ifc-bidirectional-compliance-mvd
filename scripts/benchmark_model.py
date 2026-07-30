@@ -1,12 +1,13 @@
-"""Measure a reproducible smoke baseline for the controlled IFC fixture.
+"""Measure a reproducible backend baseline for a selected IFC model.
 
-These numbers are useful for detecting gross regressions. They are not a
-performance claim for a real project model.
+The controlled fixture is the default. External model conclusions require a
+separate provenance and license record.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -126,7 +127,7 @@ def _import_once(
         return elapsed_ms
 
 
-def run_benchmark(fixture: Path, iterations: int) -> dict:
+def run_benchmark(fixture: Path, iterations: int, label: str | None = None) -> dict:
     fixture = fixture.resolve()
     fixture_engine = ComplianceEngine(model_path=fixture)
     fixture_engine.run(persist=False)
@@ -188,8 +189,14 @@ def run_benchmark(fixture: Path, iterations: int) -> dict:
     )
     processor = platform.processor().strip() or platform.machine()
     total_memory = _total_memory_bytes()
+    controlled_fixture = fixture == MODEL_PATH.resolve()
+    scope = (
+        "controlled synthetic fixture smoke baseline; not representative of a real project"
+        if controlled_fixture
+        else label or "user-selected external IFC; provenance not asserted by this script"
+    )
     return {
-        "scope": "controlled synthetic fixture smoke baseline; not representative of a real project",
+        "scope": scope,
         "environment": {
             "operating_system": platform.system(),
             "os_release": platform.release(),
@@ -201,6 +208,7 @@ def run_benchmark(fixture: Path, iterations: int) -> dict:
         },
         "model": {
             "name": fixture.name,
+            "sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
             "schema": str(fixture_engine.model.schema),
             "file_bytes": fixture.stat().st_size,
             "ifc_product_count": len(fixture_engine.model.by_type("IfcProduct")),
@@ -221,7 +229,15 @@ def run_benchmark(fixture: Path, iterations: int) -> dict:
         "limitations": [
             "Browser first-useful-render, interaction latency, FPS, and long tasks are measured separately.",
             "tracemalloc excludes native allocations made by IfcOpenShell and the graphics driver.",
-            "The fixture is deliberately tiny and cannot support real-project performance conclusions.",
+            *(
+                [
+                    "The fixture is deliberately tiny and cannot support real-project performance conclusions."
+                ]
+                if controlled_fixture
+                else [
+                    "The caller is responsible for recording model provenance, license, and attribution."
+                ]
+            ),
         ],
     }
 
@@ -235,6 +251,10 @@ def main() -> int:
         help="IFC file to benchmark (defaults to the generated fixture).",
     )
     parser.add_argument(
+        "--label",
+        help="Explicit provenance/scope label for a non-default IFC.",
+    )
+    parser.add_argument(
         "--iterations",
         type=int,
         default=7,
@@ -243,7 +263,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.iterations < 1 or args.iterations > 100:
         parser.error("--iterations must be between 1 and 100")
-    print(json.dumps(run_benchmark(args.fixture, args.iterations), indent=2))
+    print(json.dumps(run_benchmark(args.fixture, args.iterations, args.label), indent=2))
     return 0
 
 

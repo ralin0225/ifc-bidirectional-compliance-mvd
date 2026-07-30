@@ -15,7 +15,7 @@
 
 ```text
 python -m pytest
-51 passed
+53 passed
 
 node --check frontend/app.js
 exit code 0
@@ -25,7 +25,7 @@ passed
 ```
 
 GitHub Actions 质量矩阵 run
-[`30584483711`](https://github.com/ralin0225/ifc-bidirectional-compliance-mvd/actions/runs/30584483711)
+[`30585095622`](https://github.com/ralin0225/ifc-bidirectional-compliance-mvd/actions/runs/30585095622)
 在 Ubuntu CPython 3.11、3.12、3.13 和 Windows CPython 3.12 全部通过。每个作业从锁文件安装后执行
 `pip check`、公开仓库审计、前端语法检查、自动化测试、确定性夹具/IDS 重建 diff 和 CLI 检查。
 
@@ -60,6 +60,7 @@ GitHub Actions 质量矩阵 run
 - 3D picking、状态 overlay、搜索、模型树、隐藏、隔离、ghost、正交/透视、标准视图、Z 剖切、bbox 中心点测量和 viewpoint URL 恢复；
 - 390×844 单列布局，无横向溢出；
 - 性能采样期间 5 次冷导航及选择/筛选交互，console warning/error 为 0。
+- 通过文件选择器导入登记的 13.0 MB CC BY 4.0 clinic IFC2X3，打开 523 构件工作区并保存 777-result run；现实模型浏览器指标和限制单独记录。
 
 浏览器性能数字及限制见
 [`performance-baseline.md`](performance-baseline.md)。
@@ -73,4 +74,6 @@ GitHub Actions 质量矩阵 run
 - 用户原始 IFC、`.env`、虚拟环境、SQLite/WAL、导入暂存和结果日志不提交；
 - 合成模型来源、SHA-256 和许可登记在
   [`model-and-license-register.md`](../docs/research/model-and-license-register.md)；
-- 现实项目模型尚未登记，因此现实规模集成/性能验收仍是明确未完成项。
+- 许可现实模型以固定 commit、13,003,205-byte exact size、SHA-256、CC BY 4.0 署名和 offline fallback 登记；模型本体留在 ignored runtime；
+- 现实模型性能与 777 项 `NOT_CHECKABLE` mapping 限制见
+  [`real-model-performance.md`](real-model-performance.md)。
