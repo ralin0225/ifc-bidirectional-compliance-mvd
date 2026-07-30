@@ -99,7 +99,7 @@ GET /api/elements/某个GlobalId/rules
 
 ## 三维 viewer 做什么
 
-浏览器从 `/api/scene` 得到每个 IFC 构件的三角网格和 `GlobalId`。WebGL 把它们画出来：
+浏览器先从 `/api/scene/manifest` 得到总量和分块计划，再从 `/api/scene/chunks/{index}` 逐块取得每个 IFC 构件的三角网格和 `GlobalId`；旧 `/api/scene` 仍兼容一次取全。WebGL 在首块到达后就开始画：
 
 - 绿色：PASS；
 - 红色：FAIL；
@@ -153,4 +153,3 @@ sh run.sh
 ```
 
 测试会把程序输出与人工 ground truth 对比，还会检查边界值、缺数据、IDS、双向 API、三维 GUID 对齐和重复运行一致性。
-

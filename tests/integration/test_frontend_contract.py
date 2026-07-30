@@ -10,6 +10,8 @@ def test_frontend_has_no_external_runtime_dependency():
     assert "cdn" not in html.lower()
     assert "/api/rules" in javascript
     assert "/api/scene" in javascript
+    assert "/api/scene/manifest" in javascript
+    assert "/api/scene/chunks/" in javascript
     assert "/api/graph/ego" in javascript
     assert "/export?format=" in javascript
 
@@ -48,6 +50,7 @@ def test_viewer_supports_auditable_review_tools():
         "measurePoints",
         "encodeViewpoint",
         "restoreViewpoint",
+        "append(elements)",
     ):
         assert capability in javascript
 

@@ -1,4 +1,4 @@
-# ADR 0011：许可现实模型与 scene 分块方向
+# ADR 0011：许可现实模型与增量 scene 分块
 
 - 状态：Accepted
 - 日期：2026-07-30
@@ -13,9 +13,10 @@
 2. 只提交 JSON manifest 和安全下载器；13.0 MB 模型写入 ignored runtime。URL 固定完整 commit，下载必须通过 HTTPS、20 MiB、exact byte size、SHA-256 和 STEP envelope 校验。
 3. tracked 14 KiB IFC4 继续作为完全离线 fallback 和 deterministic unit fixture。
 4. 现实模型单列性能报告与宽松预算，不复用合成夹具阈值。
-5. 1.66 MB 单 scene payload 虽可运行，但现实模型首屏和 long-task 数据支持下一步改为 manifest + bounded chunks；旧 `/api/scene` 保持兼容直到前端迁移。
-6. 当前现实模型产生的 777 项 `NOT_CHECKABLE` 保持原义：缺少 mapping/required information，不得转成 FAIL。
+5. 新增快速 manifest 和稳定 GlobalId 排序、每块最多 100 elements 的 chunk API；前端首块即初始化 viewer，剩余块依序追加，IDS 在完整 scene 后加载。旧 `/api/scene` 保持兼容。
+6. imported model engine 采用 per-model single-flight lock，避免多个并发首屏 API 重复解析/check 同一 IFC。
+7. 当前现实模型产生的 777 项 `NOT_CHECKABLE` 保持原义：缺少 mapping/required information，不得转成 FAIL。
 
 ## 结果
 
-IFC2X3、3,298 products、523 个门/空间的真实资产链现在可复现，且不扩大 clone 或核心启动依赖。下一步优化有了实际测量目标；代价是网络下载只在显式命令执行，CI 不能自行重验 13 MB 本体。
+IFC2X3、3,298 products、523 个门/空间的真实资产链现在可复现，且不扩大 clone 或核心启动依赖。warm first-useful median 从 4,379.9 ms 降至 799.1 ms；代价是完整 scene 仍约 4.5 s，网络下载只在显式命令执行，CI 不能自行重验 13 MB 本体。

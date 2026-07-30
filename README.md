@@ -116,6 +116,8 @@ python -m venv .venv
 | GET | `/api/elements/{guid}/rules` | element → rules |
 | GET | `/api/elements/{guid}/results` | 构件的检查结果 |
 | GET | `/api/scene?model_id=...` | 指定模型、GUID 对齐的三角网格 |
+| GET | `/api/scene/manifest?model_id=...` | 稳定排序、总量与 bounded chunk 计划 |
+| GET | `/api/scene/chunks/{index}?model_id=...` | 最多 100 构件的增量三角网格 |
 | GET | `/api/graph/ego` | 局部 provenance graph |
 | GET | `/api/ids/report` | IDS 可检查性报告 |
 | POST | `/api/checks/run?model_id=...` | 对指定模型重跑确定性检查 |

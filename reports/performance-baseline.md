@@ -47,5 +47,5 @@ python scripts/benchmark_model.py --iterations 7
 
 - 这些预算仅用于这个确定性小夹具的 gross-regression gate，不是现实模型 SLO。
 - 首屏包含本地 API、SQLite 和 WebGL 初始化，但不模拟广域网。
-- 现实模型仍证明当前 scene 是单 payload；分块方向见 ADR 0011。
+- 现实模型触发的 manifest + incremental chunks 已落地；旧单 payload API 只保留兼容，见 ADR 0011。
 - 现实模型的规模、后端和真实浏览器数据在 `real-model-performance.md` 单独记录，不能和本表混为一个 SLO。

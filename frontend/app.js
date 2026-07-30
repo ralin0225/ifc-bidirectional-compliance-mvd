@@ -807,12 +807,24 @@ class IFCWebGLViewer {
   }
 
   load(elements) {
+    this.meshes.forEach((mesh) => {
+      this.gl.deleteBuffer(mesh.vertexBuffer);
+      this.gl.deleteBuffer(mesh.indexBuffer);
+      this.gl.deleteBuffer(mesh.edgeBuffer);
+    });
+    this.meshes = [];
+    this.minimumZ = Infinity;
+    this.maximumZ = -Infinity;
+    this.append(elements);
+  }
+
+  append(elements) {
     const gl = this.gl;
-    let minimumZ = Infinity;
-    let maximumZ = -Infinity;
-    this.meshes = elements.map((element, index) => {
-      minimumZ = Math.min(minimumZ, element.geometry.bbox.min[2]);
-      maximumZ = Math.max(maximumZ, element.geometry.bbox.max[2]);
+    const offset = this.meshes.length;
+    const firstAppend = offset === 0;
+    const newMeshes = elements.map((element, index) => {
+      this.minimumZ = Math.min(this.minimumZ, element.geometry.bbox.min[2]);
+      this.maximumZ = Math.max(this.maximumZ, element.geometry.bbox.max[2]);
       const positions = new Float32Array(element.geometry.positions);
       const indices = new Uint16Array(element.geometry.indices);
       const edges = [];
@@ -833,14 +845,23 @@ class IFCWebGLViewer {
       const edgeBuffer = gl.createBuffer();
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edgeBuffer);
       gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(edges), gl.STATIC_DRAW);
-      return { element, index: index + 1, vertexBuffer, indexBuffer, edgeBuffer, count: indices.length, edgeCount: edges.length };
+      return {
+        element,
+        index: offset + index + 1,
+        vertexBuffer,
+        indexBuffer,
+        edgeBuffer,
+        count: indices.length,
+        edgeCount: edges.length,
+      };
     });
-    if (Number.isFinite(minimumZ) && Number.isFinite(maximumZ)) {
-      dom.sectionLevel.min = String(minimumZ);
-      dom.sectionLevel.max = String(maximumZ);
-      dom.sectionLevel.step = String(Math.max(.01, (maximumZ - minimumZ) / 100));
-      dom.sectionLevel.value = String(maximumZ);
-      this.sectionZ = maximumZ;
+    this.meshes.push(...newMeshes);
+    if (Number.isFinite(this.minimumZ) && Number.isFinite(this.maximumZ)) {
+      dom.sectionLevel.min = String(this.minimumZ);
+      dom.sectionLevel.max = String(this.maximumZ);
+      dom.sectionLevel.step = String(Math.max(.01, (this.maximumZ - this.minimumZ) / 100));
+      if (firstAppend || !this.sectionEnabled) this.sectionZ = this.maximumZ;
+      dom.sectionLevel.value = String(this.sectionZ);
     }
     this.updateControls();
     this.render();
@@ -1037,7 +1058,7 @@ class IFCWebGLViewer {
       const normalized = encoded.replaceAll("-", "+").replaceAll("_", "/");
       const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
       const payload = JSON.parse(atob(padded));
-      const knownGuids = new Set(this.meshes.map((mesh) => mesh.element.global_id));
+      const knownGuids = new Set(state.results.map((result) => result.element_guid));
       if (![payload.yaw, payload.pitch, payload.distance, payload.sectionZ].every(Number.isFinite)) return false;
       if (!Array.isArray(payload.target) || payload.target.length !== 3 || !payload.target.every(Number.isFinite)) return false;
       this.yaw = payload.yaw;
@@ -1401,43 +1422,66 @@ async function init() {
       : models.find((model) => model.source_kind === "FIXTURE")?.model_id
         || models[0]?.model_id;
     if (!state.modelId) throw new Error("No local model is available.");
-    const [health, rules, results, scene, ids, runs] = await Promise.all([
+    const [health, rules, results, sceneManifest, runs] = await Promise.all([
       api("/api/health"),
       api(withModel("/api/rules")),
       api(withModel("/api/results")),
-      api(withModel("/api/scene")),
-      api(withModel("/api/ids/report")),
+      api(withModel("/api/scene/manifest")),
       api(withModel("/api/check-runs?limit=50")),
     ]);
-    state.health = { ...health, element_count: scene.elements.length };
+    state.health = { ...health, element_count: sceneManifest.total_elements };
     state.rules = rules;
     state.results = results;
-    state.elements = scene.elements;
-    state.ids = ids;
+    state.elements = [];
+    state.ids = null;
     state.runs = runs.items;
     const requestedRule = parameters.get("rule");
     const requestedElement = parameters.get("element");
     state.selectedRuleId = rules.some((rule) => rule.rule_id === requestedRule)
       ? requestedRule
       : rules[0]?.rule_id || null;
-    state.selectedElementGuid = scene.elements.some((element) => element.global_id === requestedElement)
+    state.selectedElementGuid = results.some((result) => result.element_guid === requestedElement)
       ? requestedElement
       : null;
-    dom.healthDot.classList.add("ready");
-    viewer.load(scene.elements);
-    selectRule(state.selectedRuleId);
-    const restored = viewer.restoreViewpoint(
-      parameters.get("view") || localStorage.getItem("ifc-compliance-viewpoint"),
-    );
-    if (restored && state.selectedElementGuid) selectElement(state.selectedElementGuid);
-    renderLocalizedUi();
-    syncUrl();
-    const usefulStarted = window.performance?.now?.();
-    if (usefulStarted !== undefined) {
-      recordNextPaint("firstUsefulRenderMs", 0);
-      window.performance.mark("ifc-workbench-useful");
-      sampleViewerPerformance();
+    document.documentElement.dataset.sceneLoadedElements = "0";
+    document.documentElement.dataset.sceneTotalElements = String(sceneManifest.total_elements);
+    const initializeScene = (elements) => {
+      dom.healthDot.classList.add("ready");
+      viewer.load(elements);
+      selectRule(state.selectedRuleId);
+      const restored = viewer.restoreViewpoint(
+        parameters.get("view") || localStorage.getItem("ifc-compliance-viewpoint"),
+      );
+      if (restored && state.selectedElementGuid) selectElement(state.selectedElementGuid);
+      renderLocalizedUi();
+      syncUrl();
+      const usefulStarted = window.performance?.now?.();
+      if (usefulStarted !== undefined) {
+        recordNextPaint("firstUsefulRenderMs", 0);
+        window.performance.mark("ifc-workbench-useful");
+        sampleViewerPerformance();
+      }
+    };
+    if (sceneManifest.chunk_count === 0) initializeScene([]);
+    for (let chunkIndex = 0; chunkIndex < sceneManifest.chunk_count; chunkIndex += 1) {
+      const chunk = await api(withModel(`/api/scene/chunks/${chunkIndex}`));
+      state.elements.push(...chunk.elements);
+      document.documentElement.dataset.sceneLoadedElements = String(state.elements.length);
+      document.documentElement.dataset.sceneTotalElements = String(sceneManifest.total_elements);
+      if (chunkIndex === 0) {
+        initializeScene(chunk.elements);
+      } else {
+        viewer.append(chunk.elements);
+      }
     }
+    document.documentElement.dataset.sceneCompleteMs =
+      window.performance?.now?.().toFixed(3) ?? "";
+    renderModelTree();
+    viewer.render();
+    state.ids = await api(withModel("/api/ids/report"));
+    renderIds();
+    document.documentElement.dataset.idsReadyMs =
+      window.performance?.now?.().toFixed(3) ?? "";
   } catch (error) {
     dom.healthText.textContent = t("app.loadFailed");
     dom.evidencePanel.innerHTML = `<p class="empty-copy">${escapeHtml(t("toast.failed", { error: error.message }))}</p>`;

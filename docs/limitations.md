@@ -34,7 +34,7 @@
 - 中英文 NL parser 是受控词典/模式垂直切片；当前 golden corpus 只有 8 条表达，不代表开放域语言理解。未识别输入会拒绝执行。
 - 没有启用 LLM adapter；当前也不支持 storey/property 复杂条件和自然语言 run comparison。
 - BCF 3.0 topic/selection 已可交换；浏览器可以把实时 camera、visibility、projection、section 和 selection 保存到 URL/localStorage，但 exporter 尚未接收该状态，BCF 仍使用稳定通用 camera，也没有 snapshot、导入或回写。
-- 浏览器 viewer 是轻量 WebGL triangle renderer：已有空间树、隐藏/隔离、单 Z 剖切和 bbox-center 测距；13 MB 现实模型 benchmark 已建立，但 scene 仍是单一 1.66 MB payload，没有增量分块、IFC 材质、section cap、表面吸附或 markup。
+- 浏览器 viewer 是轻量 WebGL triangle renderer：已有空间树、隐藏/隔离、单 Z 剖切、bbox-center 测距和最多 100-element 的增量 scene chunks；13 MB 现实模型完整几何仍需约 4.5 秒，没有持久几何缓存、IFC 材质、section cap、表面吸附或 markup。
 - API 可按 model id 运行检查和场景，但 UI 尚无模型版本关系、联邦坐标或跨模型 compare；job 是单进程 `BackgroundTasks`，只有 queued cancellation，没有独立 worker、鉴权或多 writer 并发。
 - `data/results/latest.json` 是本地运行产物，故意不提交。
 

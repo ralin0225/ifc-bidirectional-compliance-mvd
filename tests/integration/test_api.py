@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -43,6 +45,22 @@ def test_health_and_models():
     assert client.get("/api/projects").json()[0]["model_count"] == 1
 
 
+def test_model_engine_load_is_single_flight(monkeypatch):
+    original_engine_class = api_module.ComplianceEngine
+    constructed = []
+
+    def counting_engine(**kwargs):
+        constructed.append(kwargs)
+        return original_engine_class(**kwargs)
+
+    api_module.engines.clear()
+    monkeypatch.setattr(api_module, "ComplianceEngine", counting_engine)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        loaded = list(executor.map(api_module.require_model_engine, [MODEL_ID] * 5))
+    assert len(constructed) == 1
+    assert all(item is loaded[0] for item in loaded)
+
+
 def test_rule_to_elements_and_element_to_rules_are_bidirectional():
     rule_id = "IBC2021-1010.1.1-WIDTH"
     rule_elements = client.get(f"/api/rules/{rule_id}/elements").json()
@@ -65,6 +83,33 @@ def test_scene_is_guid_addressable_and_contains_real_geometry():
         node["ifc_class"]
         for node in scene["elements"][0]["spatial_path"]
     } >= {"IfcProject", "IfcSite", "IfcBuilding", "IfcBuildingStorey"}
+
+
+def test_scene_manifest_and_bounded_chunks_are_complete(monkeypatch):
+    monkeypatch.setattr(api_module, "SCENE_CHUNK_SIZE", 4)
+    manifest = client.get("/api/scene/manifest").json()
+    assert manifest == {
+        "model_id": MODEL_ID,
+        "units": "m",
+        "ordering": "global_id",
+        "total_elements": 10,
+        "chunk_size": 4,
+        "chunk_count": 3,
+    }
+    chunks = [client.get(f"/api/scene/chunks/{index}") for index in range(3)]
+    assert all(response.status_code == 200 for response in chunks)
+    assert [response.json()["element_count"] for response in chunks] == [4, 4, 2]
+    elements = [
+        element
+        for response in chunks
+        for element in response.json()["elements"]
+    ]
+    assert len(elements) == 10
+    assert [element["global_id"] for element in elements] == sorted(
+        element["global_id"] for element in elements
+    )
+    assert client.get("/api/scene/chunks/3").status_code == 404
+    assert client.get("/api/scene/chunks/-1").status_code == 404
 
 
 def test_check_endpoint_is_deterministic_and_structured():
@@ -230,6 +275,8 @@ def test_openapi_describes_validated_query_contracts():
         "/api/query/execute",
         "/api/query/execute-dsl",
         "/api/queries",
+        "/api/scene/manifest",
+        "/api/scene/chunks/{chunk_index}",
     ):
         assert path in schema["paths"]
     execute = schema["paths"]["/api/query/execute"]["post"]

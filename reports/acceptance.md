@@ -15,7 +15,7 @@
 
 ```text
 python -m pytest
-53 passed
+55 passed
 
 node --check frontend/app.js
 exit code 0
@@ -58,6 +58,7 @@ GitHub Actions 质量矩阵 run
 - 自然语言查询同步结果和 3D；
 - run history/compare，以及 JSON、CSV、HTML 和 BCF 导出；
 - 3D picking、状态 overlay、搜索、模型树、隐藏、隔离、ghost、正交/透视、标准视图、Z 剖切、bbox 中心点测量和 viewpoint URL 恢复；
+- 现实模型通过 6 个稳定 scene chunks 增量加载；首块可用后继续加载，late-chunk element 的 isolate/viewpoint 保存恢复保持正确；
 - 390×844 单列布局，无横向溢出；
 - 性能采样期间 5 次冷导航及选择/筛选交互，console warning/error 为 0。
 - 通过文件选择器导入登记的 13.0 MB CC BY 4.0 clinic IFC2X3，打开 523 构件工作区并保存 777-result run；现实模型浏览器指标和限制单独记录。

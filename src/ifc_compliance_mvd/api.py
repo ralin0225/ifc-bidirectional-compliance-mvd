@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections import Counter
+from math import ceil
 from pathlib import Path
+from threading import Lock
 from typing import Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
@@ -30,6 +32,7 @@ app = FastAPI(
     version=CHECKER_VERSION,
     description="Traceable exploration from structured IBC rules to IFC elements and back.",
 )
+SCENE_CHUNK_SIZE = 100
 engine = ComplianceEngine()
 engine.run(persist=False)
 store = ComplianceStore()
@@ -44,29 +47,46 @@ store.seed_fixture(
 store.replace_model_elements(MODEL_ID, engine.serialised_elements(include_geometry=False))
 import_service = ModelImportService(store)
 engines = {MODEL_ID: engine}
+engine_locks: dict[str, Lock] = {}
+engine_locks_guard = Lock()
+
+
+def model_engine_lock(model_id: str) -> Lock:
+    with engine_locks_guard:
+        return engine_locks.setdefault(model_id, Lock())
 
 
 def require_model_engine(model_id: str) -> ComplianceEngine:
     cached = engines.get(model_id)
     if cached is not None:
         return cached
-    record = store.get_model(model_id, include_private=True)
-    if record is None:
-        raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
-    if record["source_kind"] == "FIXTURE":
-        model_path = MODEL_PATH
-    else:
-        stored_path = record.get("stored_path")
-        if not stored_path:
-            raise HTTPException(status_code=409, detail="The imported model has no stored asset.")
-        import_root = import_service.imports_path.resolve()
-        model_path = (import_root / Path(stored_path)).resolve()
-        if import_root not in model_path.parents or not model_path.is_file():
-            raise HTTPException(status_code=409, detail="The imported model asset is unavailable.")
-    loaded = ComplianceEngine(model_path=model_path, model_id=model_id)
-    loaded.run(persist=False)
-    engines[model_id] = loaded
-    return loaded
+    with model_engine_lock(model_id):
+        cached = engines.get(model_id)
+        if cached is not None:
+            return cached
+        record = store.get_model(model_id, include_private=True)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
+        if record["source_kind"] == "FIXTURE":
+            model_path = MODEL_PATH
+        else:
+            stored_path = record.get("stored_path")
+            if not stored_path:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The imported model has no stored asset.",
+                )
+            import_root = import_service.imports_path.resolve()
+            model_path = (import_root / Path(stored_path)).resolve()
+            if import_root not in model_path.parents or not model_path.is_file():
+                raise HTTPException(
+                    status_code=409,
+                    detail="The imported model asset is unavailable.",
+                )
+        loaded = ComplianceEngine(model_path=model_path, model_id=model_id)
+        loaded.run(persist=False)
+        engines[model_id] = loaded
+        return loaded
 
 
 def require_rule(rule_id: str) -> dict:
@@ -487,6 +507,48 @@ def scene(model_id: str = Query(default=MODEL_ID)) -> dict:
         "model_id": model_id,
         "units": "m",
         "elements": selected_engine.serialised_elements(include_geometry=True),
+    }
+
+
+@app.get("/api/scene/manifest")
+def scene_manifest(model_id: str = Query(default=MODEL_ID)) -> dict:
+    selected_engine = require_model_engine(model_id)
+    total = len(selected_engine.elements)
+    return {
+        "model_id": model_id,
+        "units": "m",
+        "ordering": "global_id",
+        "total_elements": total,
+        "chunk_size": SCENE_CHUNK_SIZE,
+        "chunk_count": ceil(total / SCENE_CHUNK_SIZE) if total else 0,
+    }
+
+
+@app.get("/api/scene/chunks/{chunk_index}")
+def scene_chunk(
+    chunk_index: int,
+    model_id: str = Query(default=MODEL_ID),
+) -> dict:
+    selected_engine = require_model_engine(model_id)
+    total = len(selected_engine.elements)
+    chunk_count = ceil(total / SCENE_CHUNK_SIZE) if total else 0
+    if chunk_index < 0 or chunk_index >= chunk_count:
+        raise HTTPException(status_code=404, detail=f"Unknown scene chunk: {chunk_index}")
+    offset = chunk_index * SCENE_CHUNK_SIZE
+    elements = selected_engine.serialised_elements(
+        include_geometry=True,
+        offset=offset,
+        limit=SCENE_CHUNK_SIZE,
+    )
+    return {
+        "model_id": model_id,
+        "units": "m",
+        "ordering": "global_id",
+        "chunk_index": chunk_index,
+        "chunk_count": chunk_count,
+        "element_offset": offset,
+        "element_count": len(elements),
+        "elements": elements,
     }
 
 

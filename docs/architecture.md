@@ -38,7 +38,7 @@ flowchart LR
 | `engine.py` | 适用性、信息前置条件、测量、状态和证据 | 不解释未建模例外 |
 | IfcTester | 对 `.ids` 执行 buildingSMART IDS 1.0 验证 | 不判断 IBC 阈值 |
 | `graph.py` | 构造局部关系投影 | 不存完整 B-rep |
-| `api.py` | 双向 API 和静态界面托管 | 不包含规则算法 |
+| `api.py` | 双向 API、per-model single-flight engine load、scene manifest/chunks 和静态界面托管 | 不包含规则算法 |
 | `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
 | `nl_query.py` | 中英文解析、Pydantic DSL 校验和确定性 domain query | 不生成 SQL，不调用 LLM，不决定新合规状态 |
 | `exports.py` | 从已审计运行生成 JSON、CSV、HTML 和 BCF 3.0 | 不重新执行 checker，不嵌入 IFC |
@@ -49,7 +49,7 @@ flowchart LR
 
 IFC `GlobalId` 是跨检查器、API、表格、三维网格和关系图的主要标识。规则使用稳定 `rule_id`。结果主键在 MVD 中等价于 `(execution_id, rule_id, element_guid)`。
 
-scene API 同时提供每个构件的 Project → Site → Building → Storey 空间链。viewer camera、projection、visibility、isolation、section 和 selection 可编码到 URL `view` 参数并保存到浏览器本地；恢复时过滤未知 GUID 和非法数值。该视点目前是客户端审查状态，尚未进入服务端 BCF export。
+scene API 同时提供每个构件的 Project → Site → Building → Storey 空间链。legacy `/api/scene` 保持完整 payload 兼容；产品 UI 先读 manifest，再按稳定 GlobalId 顺序逐块请求最多 100 elements，首块即初始化 WebGL，完整 scene 后异步读取 IDS。viewer camera、projection、visibility、isolation、section 和 selection 可编码到 URL `view` 参数并保存到浏览器本地；恢复时按完整结果 GUID 集合过滤，因此尚未加载的 late-chunk selection/isolation 也不会丢失。该视点目前是客户端审查状态，尚未进入服务端 BCF export。
 
 `execution_id` 由 IFC 文件字节、规范化规则库和检查器版本的 SHA-256 摘要产生。相同输入得到相同执行号，便于比较重复运行。
 

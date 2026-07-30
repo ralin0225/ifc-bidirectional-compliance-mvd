@@ -48,13 +48,19 @@ python scripts/benchmark_model.py \
 | SQLite 完整 run + 777 results 读取 | 9.2 ms | 9.7 ms | ≤ 50 ms |
 | 英文 NL parse + deterministic query | 0.149 ms | 0.272 ms | ≤ 10 ms |
 
-- 当前单一 scene JSON：1,660,470 bytes；临时预算 ≤ 2.5 MiB。
+- legacy `/api/scene` 单一 JSON：1,660,470 bytes；保留兼容但前端不再使用。
+- manifest 将 523 个构件按稳定 GlobalId 顺序分为 6 块（最多 100 elements）；响应为
+  235,228、208,835、285,188、404,621、424,106、103,382 bytes，最大 424,106 bytes。
 - engine load + checker + scene Python `tracemalloc` peak：13,179,983 bytes；预算 ≤ 25 MiB。
 - `tracemalloc` 不包含 IfcOpenShell native allocation 和 graphics driver。
 
 ## 真实浏览器
 
-文件选择器导入完成并在模型表登记 IFC2X3、3,298 products 和完整 SHA-256；模型工作区显示 523 个树节点。首次从未缓存 engine 激活：
+文件选择器导入完成并在模型表登记 IFC2X3、3,298 products 和完整 SHA-256；模型工作区显示 523 个树节点。
+
+### 优化前：单 payload + IDS 阻塞
+
+首次从未缓存 engine 激活：
 
 | 指标 | 首次激活 |
 |---|---:|
@@ -74,11 +80,28 @@ engine warm、页面冷导航 3 次：
 | active viewer render | 57.5 FPS | 56.0 FPS minimum | ≥ 45 FPS |
 | long-task duration / 1 s sample | 306 ms | 317 ms P95 | ≤ 750 ms |
 
+### 优化后：single-flight + 增量 scene chunks + 延后 IDS
+
+冷 engine 首次激活时，首个 100-element chunk 在 2,361.4 ms 可用（相对 8,594.5 ms 减少 72.5%）；523 elements 在 6,075.9 ms 完成，IDS 在 6,295.0 ms 完成。首屏 active render 为 56.5 FPS，1 秒内 long-task total 88 ms。
+
+engine warm、页面冷导航 3 次：
+
+| 指标 | Median | P95 / minimum | 当前现实模型预算 |
+|---|---:|---:|---:|
+| first useful render（首 100 elements） | 799.1 ms | 839.7 ms P95 | ≤ 1.5 s warm；≤ 4 s first activation |
+| 完整 523-element scene | 4,479.7 ms | 4,567.6 ms P95 | ≤ 6 s |
+| scene + IDS ready | 4,738.0 ms | 4,779.0 ms P95 | ≤ 7 s |
+| active viewer render during loading | 55.1 FPS | 53.9 FPS minimum | ≥ 45 FPS |
+| long-task duration / 1 s sample | 139 ms | 155 ms P95 | ≤ 300 ms |
+
+完整加载后的 element selection / filter 单次复验为 142.7 / 49.3 ms，late-chunk element 的 isolate + viewpoint URL 保存/恢复成功。优化后的 warm first-useful median 相对旧路径减少 81.8%。
+
 真实浏览器随后创建了一个 `COMPLETED` run：777 results，保存的 checker duration 585.09 ms。导入、载入、交互和 run 全程 console warning/error 为 0。
 
 ## 结论与下一步
 
 - 20 MiB 上传边界覆盖此 13.0 MB 模型，IFC2X3 路径已被真实资产验证。
-- 单 payload 1.66 MB 可运行，但 first-useful-render 和 long tasks 证明 scene 应提供 manifest + bounded chunks，并让前端增量加载。
+- legacy 1.66 MB payload 仍兼容；产品 UI 已迁移到 manifest + 最多 100-element chunks，并把 IDS 从 first useful render 的阻塞链移出。
+- 分块显著改善感知首屏，但完整几何仍需约 4.5 s；后续可考虑持久几何缓存、byte/triangle-aware chunk 和压缩。
 - 现实模型 property/type fallback 尚未实现；所有 777 个 `NOT_CHECKABLE` 是可检查性证据，不是法规结论。
 - 当前只是一台机器、一个作者工具年代和一个模型；预算是回归 guardrail，不是产品 SLO。

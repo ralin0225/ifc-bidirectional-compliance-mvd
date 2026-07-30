@@ -249,8 +249,16 @@ class ComplianceEngine:
             "specifications": specifications,
         }
 
-    def serialised_elements(self, include_geometry: bool = False) -> list[dict]:
+    def serialised_elements(
+        self,
+        include_geometry: bool = False,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+    ) -> list[dict]:
+        ordered = sorted(self.elements.values(), key=lambda item: item.GlobalId)
+        selected = ordered[offset:] if limit is None else ordered[offset : offset + limit]
         return [
             serialise_element(element, include_geometry=include_geometry)
-            for element in sorted(self.elements.values(), key=lambda item: item.GlobalId)
+            for element in selected
         ]

@@ -45,6 +45,8 @@ frontend contract + browser smoke test
 - IDS 对三个缺失信息夹具各识别一个失败实例。
 - rule → elements 的实例能从 element → rules 反向查回同一规则。
 - 三维 scene 的每个 mesh 都能通过 IFC `GlobalId` 对齐。
+- scene manifest/chunks 保持稳定 GlobalId 顺序、每块上限、无重复/遗漏和越界 404。
+- 并发首屏请求只构造一次 imported-model engine。
 - 同一输入连续运行得到相同结果与 execution ID。
 - 前端不包含 CDN 或外部运行依赖。
 - 上传在 IfcOpenShell 之前拒绝路径文件名、非 IFC 扩展、错误 MIME、缺失 STEP envelope 和超限 body。
@@ -76,3 +78,4 @@ python scripts/benchmark_model.py --iterations 7
 8. 检查 ego graph 节点点击可以回到规则或构件。
 9. 在窄屏宽度检查面板改为单列且没有横向溢出。
 10. 通过 file chooser 导入许可明确的合成 IFC，确认 job 完成/去重、模型登记和 model-scoped run。
+11. 打开登记的现实 clinic IFC，确认首 100 elements 可先交互、最终加载 523 elements，并恢复 late-chunk element 的 isolate/viewpoint。

@@ -25,4 +25,4 @@
 
 ## 结论
 
-当前 10 构件受控样本不值得用新引擎换取依赖、许可证与数据管线风险。先补齐审查闭环，并保持 `GlobalId`、scene payload 和序列化 viewpoint 的边界。真实作者工具 benchmark 一旦证明一次性 JSON / 原生 WebGL 不满足交互和内存门槛，就对 That Open 做隔离 spike；迁移决策必须以同一批 IFC、同一浏览器、同一审查任务实测，不以 feature list 代替 benchmark。
+10 构件受控样本不值得用新引擎换取依赖、许可证与数据管线风险。13 MB clinic benchmark 证明一次性 JSON 会拖慢感知首屏，但原生 WebGL 在 28,780 triangles 仍保持 53.9+ FPS；因此先保留 `GlobalId`/viewpoint 契约，用 manifest + bounded chunks 把 warm first-useful median 从 4,379.9 ms 降到 799.1 ms。若后续模型在完整加载、内存、材质/实例化或 section cap 上超预算，再对 That Open 做隔离 spike；迁移决策必须以同一批 IFC、同一浏览器、同一审查任务实测，不以 feature list 代替 benchmark。
