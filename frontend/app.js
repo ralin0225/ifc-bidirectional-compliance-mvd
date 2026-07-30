@@ -13,6 +13,7 @@ const state = {
   results: [],
   elements: [],
   runs: [],
+  queryResponse: null,
   ids: null,
   health: null,
   selectedRuleId: null,
@@ -40,6 +41,12 @@ const dom = {
   reloadRuns: document.querySelector("#reloadRuns"),
   runsBody: document.querySelector("#runsBody"),
   runsEmpty: document.querySelector("#runsEmpty"),
+  queryForm: document.querySelector("#queryForm"),
+  queryInput: document.querySelector("#queryInput"),
+  queryRun: document.querySelector("#queryRun"),
+  queryDsl: document.querySelector("#queryDsl"),
+  queryFeedback: document.querySelector("#queryFeedback"),
+  queryResults: document.querySelector("#queryResults"),
 };
 
 const escapeHtml = (value) => String(value ?? "")
@@ -79,6 +86,9 @@ function applyStaticTranslations() {
   document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
     element.setAttribute("aria-label", t(element.dataset.i18nAria));
   });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+    element.setAttribute("placeholder", t(element.dataset.i18nPlaceholder));
+  });
   dom.localeSelect.value = state.locale;
 }
 
@@ -111,6 +121,7 @@ function renderLocalizedUi() {
   renderResults();
   renderEvidence();
   renderRuns();
+  renderQuery();
   const rule = currentRule();
   if (rule) dom.viewerTitle.textContent = `§${rule.source.section} · ${rule.target.ifc_class}`;
   dom.legend.innerHTML = Object.keys(STATUS).map((status) => `
@@ -424,6 +435,47 @@ async function loadRuns() {
   renderRuns();
 }
 
+function renderQuery() {
+  const response = state.queryResponse;
+  if (!response) {
+    dom.queryDsl.textContent = "—";
+    dom.queryFeedback.className = "empty-copy";
+    dom.queryFeedback.textContent = t("query.empty");
+    dom.queryResults.innerHTML = "";
+    return;
+  }
+  dom.queryDsl.textContent = JSON.stringify(response.parsed.dsl, null, 2);
+  if (response.parsed.warnings.length) {
+    dom.queryFeedback.className = "query-warning";
+    dom.queryFeedback.textContent = response.parsed.warnings
+      .map((warning) => t(`query.warning.${warning}`))
+      .join(" ");
+  } else {
+    dom.queryFeedback.className = "";
+    dom.queryFeedback.textContent = t("query.matched", {
+      total: response.total,
+      returned: response.returned,
+    });
+  }
+  dom.queryResults.innerHTML = response.rows.length
+    ? response.rows.map((row) => `
+      <button class="query-result status-${row.status}" type="button"
+        data-query-rule="${escapeHtml(row.rule_id)}"
+        data-query-guid="${escapeHtml(row.element_guid)}">
+        <strong>${escapeHtml(row.element_name)} · ${escapeHtml(statusLabel(row.status))}</strong>
+        <span>${escapeHtml(t(`rules.${row.rule_id}.title`))} · ${escapeHtml(row.element_guid)}</span>
+      </button>
+    `).join("")
+    : `<p class="empty-copy">${escapeHtml(t("query.noRows"))}</p>`;
+  dom.queryResults.querySelectorAll("[data-query-guid]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedRuleId = button.dataset.queryRule;
+      selectElement(button.dataset.queryGuid);
+      document.querySelector("#workspace").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+}
+
 class IFCWebGLViewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -678,6 +730,31 @@ dom.resetView.addEventListener("click", () => viewer.reset());
 dom.reloadRuns.addEventListener("click", () => loadRuns().catch((error) => {
   showToast(t("toast.failed", { error: error.message }));
 }));
+dom.queryForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  dom.queryRun.disabled = true;
+  dom.queryRun.textContent = t("query.running");
+  try {
+    state.queryResponse = await api("/api/query/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        utterance: dom.queryInput.value,
+        locale: state.locale,
+        context: {
+          rule_id: state.selectedRuleId,
+          element_guid: state.selectedElementGuid,
+        },
+      }),
+    });
+    renderQuery();
+  } catch (error) {
+    showToast(t("toast.failed", { error: error.message }));
+  } finally {
+    dom.queryRun.disabled = false;
+    dom.queryRun.textContent = t("query.run");
+  }
+});
 dom.localeSelect.addEventListener("change", () => {
   state.locale = dom.localeSelect.value;
   localStorage.setItem("ifc-compliance-locale", state.locale);

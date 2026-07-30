@@ -18,7 +18,7 @@ def test_static_and_script_translation_keys_exist():
     script = (FRONTEND_PATH / "app.js").read_text(encoding="utf-8")
 
     static_keys = set(
-        re.findall(r'data-i18n(?:-aria)?="([^"]+)"', html)
+        re.findall(r'data-i18n(?:-aria|-placeholder)?="([^"]+)"', html)
     )
     script_keys = set(re.findall(r'\bt\("([^"]+)"', script))
 

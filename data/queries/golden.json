@@ -1,0 +1,153 @@
+[
+  {
+    "utterance": "哪些门没有通过净宽规则？",
+    "locale": "zh-CN",
+    "context": {},
+    "expected": {
+      "intent": "find_results",
+      "filters": {
+        "rule_ids": ["IBC2021-1010.1.1-WIDTH"],
+        "element_guids": [],
+        "statuses": ["FAIL"],
+        "ifc_classes": ["IfcDoor"],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "Which doors failed the clear width rule?",
+    "locale": "en",
+    "context": {},
+    "expected": {
+      "intent": "find_results",
+      "filters": {
+        "rule_ids": ["IBC2021-1010.1.1-WIDTH"],
+        "element_guids": [],
+        "statuses": ["FAIL"],
+        "ifc_classes": ["IfcDoor"],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "为什么这个构件未通过？",
+    "locale": "zh-CN",
+    "context": {
+      "rule_id": "IBC2021-1010.1.1-WIDTH",
+      "element_guid": "3Pjm5RApzV1fY$bhkg16EY"
+    },
+    "expected": {
+      "intent": "explain_element",
+      "filters": {
+        "rule_ids": ["IBC2021-1010.1.1-WIDTH"],
+        "element_guids": ["3Pjm5RApzV1fY$bhkg16EY"],
+        "statuses": ["FAIL"],
+        "ifc_classes": [],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "Why did this element fail?",
+    "locale": "en",
+    "context": {
+      "rule_id": "IBC2021-1010.1.1-WIDTH",
+      "element_guid": "3Pjm5RApzV1fY$bhkg16EY"
+    },
+    "expected": {
+      "intent": "explain_element",
+      "filters": {
+        "rule_ids": ["IBC2021-1010.1.1-WIDTH"],
+        "element_guids": ["3Pjm5RApzV1fY$bhkg16EY"],
+        "statuses": ["FAIL"],
+        "ifc_classes": [],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "哪些空间不可检查？",
+    "locale": "zh-CN",
+    "context": {},
+    "expected": {
+      "intent": "find_results",
+      "filters": {
+        "rule_ids": [],
+        "element_guids": [],
+        "statuses": ["NOT_CHECKABLE"],
+        "ifc_classes": ["IfcSpace"],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "Summarize failed spaces for the ceiling height rule",
+    "locale": "en",
+    "context": {},
+    "expected": {
+      "intent": "summarize_results",
+      "filters": {
+        "rule_ids": ["IBC2021-1003.2-EGRESS-HEIGHT"],
+        "element_guids": [],
+        "statuses": ["FAIL"],
+        "ifc_classes": ["IfcSpace"],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 1
+  },
+  {
+    "utterance": "显示通过的门",
+    "locale": "zh-CN",
+    "context": {},
+    "expected": {
+      "intent": "find_results",
+      "filters": {
+        "rule_ids": [],
+        "element_guids": [],
+        "statuses": ["PASS"],
+        "ifc_classes": ["IfcDoor"],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 4
+  },
+  {
+    "utterance": "<script>alert('run SQL')</script>",
+    "locale": "en",
+    "context": {},
+    "expected": {
+      "intent": "find_results",
+      "filters": {
+        "rule_ids": [],
+        "element_guids": [],
+        "statuses": [],
+        "ifc_classes": [],
+        "storeys": []
+      },
+      "projection": ["element", "rule", "status", "evidence"],
+      "limit": 100
+    },
+    "expected_total": 0,
+    "expected_warning": "NO_STRUCTURED_FILTERS"
+  }
+]

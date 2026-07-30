@@ -26,6 +26,8 @@ IBC document → clause → structured rule → IFC requirement/geometry
 - 自动迁移 SQLite，持久化项目、模型元数据、检查运行和逐项证据
 - 唯一运行号、确定性执行号、分页历史和两次运行比较 API
 - 简体中文 / English 全局切换与可分享的规则、构件、运行 URL
+- 中英文自然语言 → Pydantic 校验 DSL → 确定性证据查询，模糊输入受控拒绝
+- 可审计 query history；核心查询不调用 LLM、不生成 SQL、无需 API key
 - 无 CDN 的 WebGL 三维视图、状态筛选、构件拾取、证据面板和局部 provenance graph
 - 15 条人工 ground truth、边界值和端到端自动化测试
 
@@ -92,6 +94,10 @@ python -m venv .venv
 | GET | `/api/check-runs` | 分页检查历史 |
 | GET | `/api/check-runs/{run_id}` | 可审计运行与逐项结果 |
 | GET | `/api/check-runs/{base}/compare/{target}` | 两次运行的逐项差异 |
+| POST | `/api/query/parse` | 中英文问题解析为受控 DSL |
+| POST | `/api/query/execute` | 解析并执行确定性证据查询 |
+| POST | `/api/query/execute-dsl` | 执行已校验结构化查询 |
+| GET | `/api/queries` | 查询审计历史 |
 | GET | `/api/rules` | 规则与状态计数 |
 | GET | `/api/rules/{rule_id}/elements` | rule → elements |
 | GET | `/api/elements/{guid}/rules` | element → rules |

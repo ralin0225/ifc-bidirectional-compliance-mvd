@@ -38,6 +38,7 @@ flowchart LR
 | `graph.py` | 构造局部关系投影 | 不存完整 B-rep |
 | `api.py` | 双向 API 和静态界面托管 | 不包含规则算法 |
 | `storage.py` | 自动迁移 SQLite，持久化项目、模型、运行和逐项结果 | 不保存 IFC 几何或重新判定合规 |
+| `nl_query.py` | 中英文解析、Pydantic DSL 校验和确定性 domain query | 不生成 SQL，不调用 LLM，不决定新合规状态 |
 | `frontend/` | 协调选择、筛选、三维拾取和解释 | 不在浏览器重新判定合规 |
 
 ## 数据主键
@@ -51,6 +52,10 @@ IFC `GlobalId` 是跨检查器、API、表格、三维网格和关系图的主�
 ## 本地化
 
 静态和动态 UI 文案使用 `frontend/i18n.json` 的 `zh-CN` / `en` 对等键集合。语言优先级为 URL `lang` 参数、浏览器本地保存值、浏览器首选语言；选择会写回 URL 和本地保存值。IFC `Name`、property key、IFC class 和带 `lang="en"` 的法规源文本保持源语言，不做伪翻译。
+
+## 自然语言查询
+
+`NaturalLanguageQueryRequest` 最多 500 字符，解析为禁止额外字段的 `QueryDSL`。DSL 只允许 `find_results`、`explain_element`、`summarize_results`，并在固定的 rule id、GlobalId、状态和 IFC class 上筛选。模糊输入 fail closed，不退化成全部结果；逐次查询审计写入 SQLite schema v2。
 
 ## 状态机
 

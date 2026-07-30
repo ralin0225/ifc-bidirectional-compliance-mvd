@@ -27,7 +27,7 @@ def test_health_and_models():
     assert health.status_code == 200
     assert health.json()["rule_count"] == 3
     assert health.json()["element_count"] == 10
-    assert health.json()["storage"]["schema_version"] == 1
+    assert health.json()["storage"]["schema_version"] == 2
     assert client.get("/api/models").json()[0]["schema"] == "IFC4"
     assert client.get("/api/projects").json()[0]["model_count"] == 1
 
@@ -87,3 +87,66 @@ def test_ego_graph_is_local_and_traceable():
 def test_unknown_ids_return_404():
     assert client.get("/api/rules/unknown").status_code == 404
     assert client.get("/api/elements/unknown/rules").status_code == 404
+
+
+def test_natural_language_query_is_validated_executed_and_audited():
+    response = client.post(
+        "/api/query/execute",
+        json={
+            "utterance": "Which doors failed the clear width rule?",
+            "locale": "en",
+            "context": {},
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["parsed"]["dsl"]["filters"] == {
+        "rule_ids": ["IBC2021-1010.1.1-WIDTH"],
+        "element_guids": [],
+        "statuses": ["FAIL"],
+        "ifc_classes": ["IfcDoor"],
+        "storeys": [],
+    }
+    assert payload["total"] == 1
+    assert payload["rows"][0]["element_guid"] == "3Pjm5RApzV1fY$bhkg16EY"
+    history = client.get("/api/queries").json()
+    assert history["total"] == 1
+    assert history["items"][0]["query_id"] == payload["query_id"]
+
+
+def test_ambiguous_or_malicious_query_fails_closed():
+    response = client.post(
+        "/api/query/execute",
+        json={
+            "utterance": "<script>fetch('/secrets')</script>; DROP TABLE results",
+            "locale": "en",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["parsed"]["executable"] is False
+    assert response.json()["rows"] == []
+    assert "NO_STRUCTURED_FILTERS" in response.json()["parsed"]["warnings"]
+
+    oversized = client.post(
+        "/api/query/execute",
+        json={"utterance": "x" * 501, "locale": "en"},
+    )
+    assert oversized.status_code == 422
+
+
+def test_openapi_describes_validated_query_contracts():
+    schema = client.get("/openapi.json").json()
+    for path in (
+        "/api/query/parse",
+        "/api/query/execute",
+        "/api/query/execute-dsl",
+        "/api/queries",
+    ):
+        assert path in schema["paths"]
+    execute = schema["paths"]["/api/query/execute"]["post"]
+    assert execute["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "NaturalLanguageQueryRequest"
+    )
+    assert execute["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "QueryExecutionResponse"
+    )

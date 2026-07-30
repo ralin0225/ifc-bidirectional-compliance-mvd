@@ -31,6 +31,8 @@
 
 - 项目、模型元数据、运行和结果已保存到可迁移 SQLite；元素语义索引、几何和关系图仍是当前模型的内存投影。
 - 当前数据库只登记内置可重建模型，尚未开放不可信 IFC 上传和多模型导入任务。
+- 中英文 NL parser 是受控词典/模式垂直切片；当前 golden corpus 只有 8 条表达，不代表开放域语言理解。未识别输入会拒绝执行。
+- 没有启用 LLM adapter；当前也不支持 storey/property 复杂条件和自然语言 run comparison。
 - 浏览器 viewer 是本项目实现的轻量 WebGL triangle renderer，不支持完整 IFC 材质、层级树、剖切和测量工具。
 - API 单进程加载一个小模型，未做上传隔离、作业队列、鉴权或多 writer 数据库并发。
 - `data/results/latest.json` 是本地运行产物，故意不提交。

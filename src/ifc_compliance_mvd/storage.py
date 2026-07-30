@@ -13,7 +13,7 @@ from typing import Iterator
 
 from .paths import DATABASE_PATH
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DEFAULT_PROJECT_ID = "project-egress-research"
 
 MIGRATIONS = {
@@ -70,6 +70,20 @@ MIGRATIONS = {
         CREATE INDEX results_status_idx ON results(run_id, status);
         CREATE INDEX results_element_idx ON results(element_guid, run_id);
         CREATE INDEX results_rule_idx ON results(rule_id, run_id);
+    """,
+    2: """
+        CREATE TABLE query_history (
+            query_id TEXT PRIMARY KEY,
+            original_utterance TEXT NOT NULL,
+            locale TEXT NOT NULL CHECK (locale IN ('zh-CN', 'en')),
+            dsl_json TEXT NOT NULL,
+            result_count INTEGER NOT NULL,
+            warnings_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX query_history_created_idx
+            ON query_history(created_at DESC);
     """,
 }
 
@@ -389,3 +403,55 @@ class ComplianceStore:
             "change_count": len(changes),
             "changes": changes,
         }
+
+    def save_query(
+        self,
+        *,
+        original_utterance: str,
+        locale: str,
+        dsl: dict,
+        result_count: int,
+        warnings: list[str],
+    ) -> str:
+        query_id = f"query-{uuid.uuid4().hex}"
+        with self.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO query_history(
+                    query_id, original_utterance, locale, dsl_json,
+                    result_count, warnings_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    query_id,
+                    original_utterance,
+                    locale,
+                    json.dumps(dsl, sort_keys=True),
+                    result_count,
+                    json.dumps(warnings, sort_keys=True),
+                    utc_now(),
+                ),
+            )
+        return query_id
+
+    def list_queries(self, *, limit: int = 20, offset: int = 0) -> dict:
+        with self.connect() as connection:
+            total = connection.execute(
+                "SELECT COUNT(*) AS total FROM query_history"
+            ).fetchone()["total"]
+            rows = connection.execute(
+                """
+                SELECT * FROM query_history
+                ORDER BY created_at DESC, query_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (limit, offset),
+            ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["dsl"] = json.loads(item.pop("dsl_json"))
+            item["warnings"] = json.loads(item.pop("warnings_json"))
+            items.append(item)
+        return {"items": items, "total": total, "limit": limit, "offset": offset}

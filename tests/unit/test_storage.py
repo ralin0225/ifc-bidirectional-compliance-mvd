@@ -64,3 +64,18 @@ def test_runs_persist_results_and_compare_deterministically(tmp_path, engine):
         "change_count": 0,
         "changes": [],
     }
+
+
+def test_query_history_round_trips_validated_dsl(tmp_path, engine):
+    store = seeded_store(tmp_path, engine)
+    query_id = store.save_query(
+        original_utterance="哪些门没有通过净宽规则？",
+        locale="zh-CN",
+        dsl={"intent": "find_results", "filters": {"statuses": ["FAIL"]}},
+        result_count=1,
+        warnings=[],
+    )
+    history = store.list_queries()
+    assert history["total"] == 1
+    assert history["items"][0]["query_id"] == query_id
+    assert history["items"][0]["dsl"]["filters"]["statuses"] == ["FAIL"]

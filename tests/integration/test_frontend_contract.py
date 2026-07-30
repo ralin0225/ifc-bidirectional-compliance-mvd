@@ -21,5 +21,7 @@ def test_frontend_exposes_coordinated_views():
         'id="evidencePanel"',
         'id="resultsBody"',
         'id="graph"',
+        'id="queryForm"',
+        'id="queryResults"',
     ):
         assert required_id in html

@@ -9,6 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from .engine import CHECKER_VERSION, MODEL_ID, ComplianceEngine
 from .graph import ego_graph
 from .ifc_adapter import serialise_element
+from .nl_query import (
+    NaturalLanguageQueryRequest,
+    ParsedQuery,
+    QueryDSL,
+    QueryExecutionResponse,
+    execute_query,
+    parse_natural_language,
+    validate_dsl,
+)
 from .paths import FRONTEND_PATH
 from .storage import ComplianceStore
 
@@ -104,6 +113,49 @@ def compare_check_runs(base_run_id: str, target_run_id: str) -> dict:
     if comparison is None:
         raise HTTPException(status_code=404, detail="One or both check runs do not exist.")
     return comparison
+
+
+@app.post("/api/query/parse", response_model=ParsedQuery)
+def parse_query(request: NaturalLanguageQueryRequest) -> ParsedQuery:
+    return parse_natural_language(request, engine)
+
+
+@app.post("/api/query/execute", response_model=QueryExecutionResponse)
+def run_natural_language_query(
+    request: NaturalLanguageQueryRequest,
+) -> QueryExecutionResponse:
+    parsed = parse_natural_language(request, engine)
+    response = execute_query(parsed, engine)
+    response.query_id = store.save_query(
+        original_utterance=parsed.original_utterance,
+        locale=parsed.locale,
+        dsl=parsed.dsl.model_dump(),
+        result_count=response.total,
+        warnings=parsed.warnings,
+    )
+    return response
+
+
+@app.post("/api/query/execute-dsl", response_model=QueryExecutionResponse)
+def run_structured_query(dsl: QueryDSL) -> QueryExecutionResponse:
+    parsed = validate_dsl(dsl, engine)
+    response = execute_query(parsed, engine)
+    response.query_id = store.save_query(
+        original_utterance=parsed.original_utterance,
+        locale=parsed.locale,
+        dsl=dsl.model_dump(),
+        result_count=response.total,
+        warnings=parsed.warnings,
+    )
+    return response
+
+
+@app.get("/api/queries")
+def query_history(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    return store.list_queries(limit=limit, offset=offset)
 
 
 @app.get("/api/models/{model_id}/elements/{global_id}")
